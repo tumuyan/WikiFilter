@@ -39,41 +39,11 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 		return 0;
 	}
 
-	char* way = new char[size];
-
 	std::vector<unsigned long> line;
 	for (unsigned long i = 0; i < size; i++) {
-		if ((raw[i] & 0b11100000) == 0b11000000) {
-			// 双字节编码，长度为2
-			way[i] = 2;
-			i++;
-			way[i] = 1;
-		}
-		else if ((raw[i] & 0b11110000) == 0b11100000) {
-			// 三字节编码，长度为3
-			way[i] = 3;
-			i++;
-			way[i] = 2;
-			i++;
-			way[i] = 1;
-		}
-		else if ((raw[0] & 0b11111000) == 0b11110000) {
-			// 四字节编码，长度为4
-			way[i] = 4;
-			i++;
-			way[i] = 3;
-			i++;
-			way[i] = 2;
-			i++;
-			way[i] = 1;
-			
-		}
-		else if (raw[i] == '\n') {
+		if (raw[i] == '\n') {
 			line.push_back(i);
-			way[i] = 1;
-		}else
-			way[i] = 1;
-
+		}
 	}
 
 	std::string word;
@@ -119,11 +89,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 					continue;
 				}
 			}
-
-			// 取消注释则使用加速
-			//	pos+=way[pos];
 			pos++;
-
 		}
 
 
