@@ -39,11 +39,41 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 		return 0;
 	}
 
+	char* way = new char[size];
+
 	std::vector<unsigned long> line;
-	for (unsigned long i = 0; i < size; ++i) {
-		if (raw[i] == '\n') {
-			line.push_back(i);
+	for (unsigned long i = 0; i < size; i++) {
+		if ((raw[i] & 0b11100000) == 0b11000000) {
+			// 双字节编码，长度为2
+			way[i] = 2;
+			i++;
+			way[i] = 1;
 		}
+		else if ((raw[i] & 0b11110000) == 0b11100000) {
+			// 三字节编码，长度为3
+			way[i] = 3;
+			i++;
+			way[i] = 2;
+			i++;
+			way[i] = 1;
+		}
+		else if ((raw[0] & 0b11111000) == 0b11110000) {
+			// 四字节编码，长度为4
+			way[i] = 4;
+			i++;
+			way[i] = 3;
+			i++;
+			way[i] = 2;
+			i++;
+			way[i] = 1;
+			
+		}
+		else if (raw[i] == '\n') {
+			line.push_back(i);
+			way[i] = 1;
+		}else
+			way[i] = 1;
+
 	}
 
 	std::string word;
@@ -57,9 +87,10 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 
 	while (std::getline(txt_file, word)) {
 		word = std::regex_replace(word, pattern, "");
-		if (word.size() < 1)
-			continue;
 		const int w_size = word.size();
+		if (w_size < 1)
+			continue;
+
 		char* w = const_cast<char*>(word.data());
 
 		int k = 0;
@@ -67,29 +98,30 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 		int l = 0;
 
 		while (pos < size) {
+			
+			if (raw[pos] == w[0]  && raw[pos + 1] == w[ 1] && raw[pos + 2] == w[ 2]
+				 && raw[pos + 3] == w[ 3] && raw[pos + 4] == w[  4] && raw[pos + 5] == w[ 5]
+				) {
 
-			if (raw[pos] == w[0]) {
-				//char sub_array[w_size +1]; // 存储子数组
-				//std::copy(pos + 5, input + 10, sub_array); // 从索引 5 到 9 复制
-				//sub_array[5] = '\0'; // 手动添加结尾空字符
-
-
-				int j = 1;
-				for (; j < word.size(); j++) {
+				int j = 6;
+				for (; j < w_size; j++) {
 					{
 						if (raw[pos + j] != w[j])
 							break;
 					}
 				}
-				if (j == word.size()) {
+				if (j == w_size) {
 					k++;
 					while (pos > line[l]) {
 						l++;
 					}
-					pos = line[l];
-
+					pos = line[l]+1;
+					continue;
 				}
 			}
+
+			// 取消注释则使用加速
+			//	pos+=way[pos];
 			pos++;
 
 		}
@@ -107,7 +139,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 		}
 
 		b++;
-		if (b % 1000 == 0) {
+		if (b % 10 == 0) {
 			auto end = std::chrono::high_resolution_clock::now();
 
 			std::chrono::duration<double> duration = end - start;
