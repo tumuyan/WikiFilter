@@ -15,7 +15,6 @@
 
 #include <chrono>
 
-#define DEBUG false;
 static int process_files(const std::string& raw_path, const std::string& txt_path, const bool print_result) {
 	std::ifstream raw_file(raw_path, std::ios::binary | std::ios::ate);
 	std::ifstream txt_file(txt_path);
@@ -33,18 +32,37 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 	std::streamsize size = raw_file.tellg();
 	raw_file.seekg(0, std::ios::beg);
 
-    char* raw = new char[size];
+    char* raw = new char[size+1];
+	raw[size] = '0';
 	if (!raw_file.read(raw, size)) {
 		std::cerr << "Error reading file!" << std::endl;
 		return 0;
 	}
 
 	std::vector<unsigned long> line;
+
+	line.push_back(0);
 	for (unsigned long i = 0; i < size; i++) {
 		if (raw[i] == '\n') {
 			line.push_back(i);
+			raw[i] = '\0';
 		}
 	}
+	if (raw[size] != '\0')
+		line.push_back(size + 1);
+
+
+	// 定义一个整数偏移量列表
+	int LINE_SIZE = line.size();
+	// 分配内存,创建一个指针数组
+	char** line_ptr = (char**)malloc(LINE_SIZE * sizeof(char*));
+
+	// 将整数偏移量转换为指针
+	line_ptr[0] = raw;
+	for (int i = 1; i < LINE_SIZE; i++) {
+		line_ptr[i] = raw + line[i]+1;
+	}
+	LINE_SIZE--;
 
 	std::string word;
 	int r = 0;
@@ -53,7 +71,6 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 	int  b = 0;
 	auto start = std::chrono::high_resolution_clock::now();
 	auto begin = std::chrono::high_resolution_clock::now();
-
 
 	while (std::getline(txt_file, word)) {
 		word = std::regex_replace(word, pattern, "");
@@ -64,33 +81,18 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 		char* w = const_cast<char*>(word.data());
 
 		int k = 0;
-		size_t pos = 0;
-		int l = 0;
-
-		while (pos < size) {
-			
-			if (raw[pos] == w[0]  && raw[pos + 1] == w[ 1] && raw[pos + 2] == w[ 2]
-				 && raw[pos + 3] == w[ 3] && raw[pos + 4] == w[  4] && raw[pos + 5] == w[ 5]
-				) {
-
-				int j = 6;
-				for (; j < w_size; j++) {
-					{
-						if (raw[pos + j] != w[j])
-							break;
-					}
-				}
-				if (j == w_size) {
-					k++;
-					while (pos > line[l]) {
-						l++;
-					}
-					pos = line[l]+1;
-					continue;
-				}
-			}
-			pos++;
+		int loop = 0;
+		for (int loop = 0; loop < LINE_SIZE; loop++) {
+			if (strstr(line_ptr[loop], w) != NULL)
+				k++;
 		}
+
+		//for (int loop = 0; loop < LINE_SIZE - 1; loop++) {
+		//	char* pos = line_ptr[loop+1];
+		//	if (memmem(line_ptr[loop], pos- line_ptr[loop], w, w_size) != NULL)
+		//		k++;
+		//}
+
 
 
 		if (k > 0)
@@ -105,12 +107,12 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 		}
 
 		b++;
-		if (b % 10 == 0) {
+		if (b % 100 == 0) {
 			auto end = std::chrono::high_resolution_clock::now();
 
 			std::chrono::duration<double> duration = end - start;
 			std::chrono::duration<double> duration2=  end - begin;
-			std::cout << "Match " << b <<", Time: " << duration.count() << ", Total " << duration2.count() << ", " << b/ duration2.count() << " it/s" << std::endl;
+			std::cout << " " << b <<"\tBatch time: " << duration.count() << ", Total time: " << duration2.count() << ", Avg " << b/ duration2.count() << " it/s" << std::endl;
 			start = std::chrono::high_resolution_clock::now();
 
 		}
@@ -118,6 +120,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 	}
 
 	delete[] raw;
+	free(line_ptr);
 	raw_file.close();
 	txt_file.close();
 	output_file.close();
