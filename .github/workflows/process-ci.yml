@@ -192,9 +192,12 @@ jobs:
         pip install pytest
 
     - name: Build WikiFilter
+      env:
+        WIKIEXTRACTOR_PARAM: ${{needs.prepare.outputs.wikiextractor_param}}
+        VERSION: ${{needs.prepare.outputs.VERSION}}
       run: |
-        echo "VERSION=${{needs.prepare.outputs.VERSION}}" >> "$GITHUB_ENV"
-        echo "wikiextractor_param=${{needs.prepare.outputs.wikiextractor_param}}" >> "$GITHUB_ENV"
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" >> "$GITHUB_ENV"
         cd WikiFilter
         pwd
         ls
@@ -245,6 +248,7 @@ jobs:
         fi
     - name: Download dict (Wiki Dump)
       continue-on-error: true
+      if: ${{github.event.inputs.dict_url == '' }}
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         if [ ! -f "dict.txt" ]; then
