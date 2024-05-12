@@ -93,6 +93,7 @@ jobs:
     - name: Check invalid file
       continue-on-error: true
       run: |
+        ls ../scripts/one_line.py
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           rm *xml.bz2
         else
@@ -134,7 +135,7 @@ jobs:
       if: ${{ env.text_files_exist != 'true' }}
       run: |
         git clone https://github.com/tumuyan/wikiextractor
-        python -m wikiextractor.wikiextractor.WikiExtractor -b 500M -q zhwiki.xml --no-templates
+        python -m wikiextractor.wikiextractor.WikiExtractor -b 500M zhwiki.xml
 
     - name:  Extracted doc to one-line-article txt
       # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
