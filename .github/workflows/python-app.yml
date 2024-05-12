@@ -90,13 +90,18 @@ jobs:
           text/AA/*.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}
 
-    - name: Clean invalid file
+    - name: Check invalid file
       continue-on-error: true
       run: |
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           rm *xml.bz2
+        else
+          echo No invalid file
         fi
-        
+        if [ -f "text/AA/*.txt" ]; then
+          echo "text_files_exist=true" >> "$GITHUB_ENV"
+        fi
+
     - name: Download wiki dump
       continue-on-error: true
       run: |
@@ -117,22 +122,26 @@ jobs:
           echo exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         fi
         
-        7z x zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
-        ls
+        if [[ "${text_files_exist}" != "true" ]]; then
+          7z x zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        fi
         
         mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
         ls -l
         
-    - name:  wikiextractor (gz to txt)
-      if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+    - name:  Wikiextractor (gz to txt)
+      # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      if: ${{ env.text_files_exist != 'true' }}
       run: |
         git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor -b 500M -q zhwiki.xml --no-templates
 
     - name:  Extracted doc to one-line-article txt
-      if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      if: ${{ env.text_files_exist != 'true' }}
       run: |
-        python -m ../scripts/one_line.py text/AA 100
+        python ../scripts/one_line.py text/AA 100
+        ls -l text/AA
         
     - name: Store Artifact Count
       id: artifact_count
