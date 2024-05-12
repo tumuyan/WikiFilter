@@ -102,11 +102,13 @@ jobs:
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         if [ ! -f "dict.txt" ]; then
+          echo download ${FILENAME}.gz
           wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
           7z x ${FILENAME}.gz
         fi
         
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
+          echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
           wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         fi
         
@@ -117,15 +119,20 @@ jobs:
         mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
         ls -l
         
-    - name:  wikiextractor处理gz为txt
+    - name:  wikiextractor (gz to txt)
       if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
       run: |
-        git clone https://github.com/attardi/wikiextractor
+        git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor -b 500M -q zhwiki.xml --no-templates
+
+    - name:  Extracted doc to one-line-article txt
+      if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      run: |
+        python -m ../scripts/one_line.py text/AA 100
         
     - name: Store Artifact Count
       id: artifact_count
-      run: echo "::set-output name=count::$(ls -1 text/AA/* | wc -l)"
+      run: echo "::set-output name=count::$(ls -1 text/AA/*.txt | wc -l)"
 
   filter:
     needs: prepare
