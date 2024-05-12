@@ -35,8 +35,8 @@ jobs:
 
     runs-on: ubuntu-latest
     outputs:
-      VERSION: ${{ steps.step1.outputs.value }}
-      wikiextractor_param: ${{ steps.step2.outputs.value }}
+      VERSION: ${{ steps.date_version.outputs.value }}
+      wikiextractor_param: ${{ steps.param_version.outputs.value }}
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
