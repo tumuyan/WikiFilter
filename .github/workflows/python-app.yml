@@ -42,11 +42,13 @@ jobs:
         
     - name: Build WikiFilter
       run: |
-        echo $GITHUB_WORKSPACE
         pwd
         cd $GITHUB_WORKSPACE
         pwd
+        ls
         cd WikiFilter
+        pwd
+        ls
         g++ -o WikiFilter  WikiFilter.cpp
         chmod +x WikiFilter; ls -l
     - name: Calculate Version
@@ -93,12 +95,23 @@ jobs:
     - name: Check invalid file
       continue-on-error: true
       run: |
+        pwd
         echo ls ../
         ls ../
         echo ls ../scripts
         ls ../scripts
         echo ls ../scripts/*
         ls ../scripts/*
+        cd WikiFilter
+        
+        pwd
+        echo ls ../
+        ls ../
+        echo ls ../scripts
+        ls ../scripts
+        echo ls ../scripts/*
+        ls ../scripts/*
+        
         python ../scripts/one_line.py 
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           rm *xml.bz2
