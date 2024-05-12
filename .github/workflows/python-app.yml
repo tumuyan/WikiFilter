@@ -105,17 +105,21 @@ jobs:
           echo download ${FILENAME}.gz
           wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
           7z x ${FILENAME}.gz
+          mv ${FILENAME} dict.txt
+        else
+          echo exist dict.txt
         fi
         
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
           wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        else
+          echo exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         fi
         
         7z x zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         ls
         
-        mv ${FILENAME} dict.txt
         mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
         ls -l
         
