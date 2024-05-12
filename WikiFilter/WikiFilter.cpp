@@ -26,7 +26,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 
 	if (!raw_file.is_open() || !txt_file.is_open() || !output_file.is_open()) {
 		std::cerr << "Error opening file!" << std::endl;
-		return 0;
+		return -1;
 	}
 
 	std::streamsize size = raw_file.tellg();
@@ -36,7 +36,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 	raw[size] = '0';
 	if (!raw_file.read(raw, size)) {
 		std::cerr << "Error reading file!" << std::endl;
-		return 0;
+		return -2;
 	}
 
 	std::vector<unsigned long> line;
@@ -152,6 +152,8 @@ int main(int argc, char* argv[]) {
 	if (argc == 3) {
 		int r = process_files(argv[2], param1, false);
 		std::cout << "text file math " << r << " words, path: " << argv[2] << std::endl;
+        if (r<1)
+            return r-1000;
 	}
 	else {
 	for (int i = 2; i < argc; i++) {

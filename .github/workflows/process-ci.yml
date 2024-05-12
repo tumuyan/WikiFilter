@@ -1,0 +1,310 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Process data
+
+on:
+  schedule:
+  - cron: "0 2 10,25 * *"
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Dataset repo'
+        required: false
+        default: ''
+      dict:
+        description: '词库文件名的关键字（从release自动下载）'
+        required: false
+        default: 'dict.txt'
+      dict_url:
+        description: '词库文件下载路径'
+        required: false
+        default: ''
+      wikiextractor_param:
+        description: "wikiextractor param"
+        required: false
+        default: '-b 500M'
+
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.step1.outputs.value }}
+      wikiextractor_param: ${{ steps.step2.outputs.value }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+    - name: Install dependencies
+      run: |
+        sudo apt-get -y install wget  p7zip-full
+        python -m pip install --upgrade pip
+        pip install pytest
+    - name: Set Date Version
+      id: date_version
+      run: |
+        # 获取当前日期
+        current_date=$(date +%Y-%m-%d)
+        
+        # 解析出年月日
+        current_year=$(date +%Y -d "$current_date")
+        current_month=$(date +%m -d "$current_date")
+        current_day=$(date +%d -d "$current_date")
+        
+        # 根据当前日期确定VERSION
+        if [ $current_day -gt 20 ]; then
+            VERSION="${current_year}${current_month}20"
+        else
+            VERSION="${current_year}${current_month}01"
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "版本号为: $VERSION"
+
+    - name: Set Param Version
+      id: param_version
+      env:
+        WIKIEXTRACTOR_PARAM: ${{github.event.inputs.wikiextractor_param}}
+      run: |
+        wikiextractor_param=$(echo "$WIKIEXTRACTOR_PARAM" | tr ' ' '_')
+        echo "wikiextractor_param=$wikiextractor_param" >> $GITHUB_OUTPUT
+        echo "wikiextractor_param=$wikiextractor_param" >> "$GITHUB_ENV"
+    
+    - name: Cache dump files
+      id: cache-dump
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-dump
+      with:
+        path: |
+          *xml.bz2
+        key: ${{ env.cache-name }}-${{ env.VERSION}}
+        
+    - name: Cache Text files
+      id: cache-text-files
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-text-files
+      with:
+        path: |
+          text/AA/*.txt
+        key: ${{ env.cache-name }}-${{ env.VERSION}}-${{env.wikiextractor_param}}
+
+    - name:  Cache Text files (only for test)
+      if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      id: cache-text-files-test
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-text-files
+      with:
+        path: |
+          text/AA/*.txt
+        key: ${{ env.cache-name }}-${{ env.VERSION}}-test
+        restore-keys: |
+          ${{ env.cache-name }}-${{ env.VERSION}}
+          
+
+    - name: Check invalid file
+      continue-on-error: true
+      run: |
+        if ls text/AA/*.txt 1> /dev/null 2>&1; then
+          echo "text_files_exist=true" >> "$GITHUB_ENV"
+          echo "Pass: Cached text file"
+        else
+          echo "Fail: No cached text file"
+        fi
+
+        if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
+          echo "Fail: Not exisit zhwiki-${VERSION}-pages-articles-multistream.xml.bz2"
+          rm *xml.bz2
+        else
+          echo Pass: No invalid dump file
+        fi        
+
+    - name: Download wiki dump
+      if: ${{env.text_files_exist != 'true'}}
+      continue-on-error: true
+      run: |
+        if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
+          echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+          wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        else
+          echo exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        fi
+        
+        if [[ "${text_files_exist}" != "true" ]]; then
+          7z x zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        fi
+        
+        mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
+        ls -l
+        
+    - name:  Wikiextractor (xml to txt)
+      # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      if: ${{ env.text_files_exist != 'true' }}
+      run: |
+        git clone https://github.com/tumuyan/wikiextractor
+        python -m wikiextractor.wikiextractor.WikiExtractor ${{github.event.inputs.wikiextractor_param}} zhwiki.xml
+
+    - name:  Extracted doc to one-line-article txt
+      # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+      if: ${{ env.text_files_exist != 'true' }}
+      run: |
+        python scripts/one_line.py text/AA 100
+        ls -l text/AA
+
+    # - name: Upload artifacts
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: build-artifacts
+    #     path: |
+    #       text/AA/*.txt
+
+    - name: Store Artifact Count
+      id: artifact_count
+      run: echo "::set-output name=count::$(ls -1 text/AA/*.txt | wc -l)"
+
+  filter:
+    needs: prepare
+    runs-on: ubuntu-latest
+    
+    # 根据上一个 job 构建的产物数量,动态生成并发任务
+    strategy:
+      matrix:
+        artifact: [0, 1, 2, 3, 4]
+        
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get -y install wget  p7zip-full
+        python -m pip install --upgrade pip
+        pip install pytest
+
+    - name: Build WikiFilter
+      run: |
+        echo "VERSION=${{needs.prepare.outputs.VERSION}}" >> "$GITHUB_ENV"
+        echo "wikiextractor_param=${{needs.prepare.outputs.wikiextractor_param}}" >> "$GITHUB_ENV"
+        cd WikiFilter
+        pwd
+        ls
+        g++ -o WikiFilter  WikiFilter.cpp
+        chmod +x WikiFilter; ls -l
+
+    - name: Cache Text files
+      id: cache-text-files
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-text-files
+      with:
+        path: |
+          text/AA/*.txt
+        key: ${{ env.cache-name }}-${{ env.VERSION}}-${{env.wikiextractor_param}}
+
+      
+    - name: Download dataset
+      if: ${{github.event.inputs.url}}
+      run: |
+        git clone ${{github.event.inputs.url}} --depth 1 text
+
+
+    - name: Download dict (Dict url)
+      continue-on-error: true
+      if: ${{github.event.inputs.dict_url != '' }}
+      run: |
+        wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
+    - name: Download dict (Github Release)
+      continue-on-error: true
+      if: ${{github.event.inputs.dict_url == '' }}
+      run: |
+        if [ ! -f "dict.txt" ]; then
+          # 设置GitHub仓库URL和需要包含的字符串
+          REPO_URL="https://api.github.com/repos/${{ steps.repo_info.outputs.REPOSITORY_NAME }}/${{ steps.repo_info.outputs.REPOSITORY_OWNER }}/releases/latest"
+          
+          # 获取最新发布版本的信息
+          RELEASE_INFO=$(wget -qO- "$REPO_URL")
+          
+          # 从发布信息中提取词库文件下载链接
+          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{github.event.inputs.dict}}"'")) | .browser_download_url')
+          
+          # 下载文件到当前目录
+          wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
+          ls    
+        else
+          echo exist dict.txt
+        fi
+    - name: Download dict (Wiki Dump)
+      continue-on-error: true
+      run: |
+        FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
+        if [ ! -f "dict.txt" ]; then
+          echo download ${FILENAME}.gz
+          wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
+          7z x ${FILENAME}.gz
+          mv ${FILENAME}  ${{github.event.inputs.dict}} 
+          ls
+        else
+          echo exist dict.txt
+        fi
+    # - name: Download artifacts
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     name: build-artifacts
+    #     path: text/AA/
+
+    - name: Run WikiFilter
+      run: |
+        ls -l
+        # mkdir -p --ignore-existing text/AA
+        echo ls text/AA
+        ls -l text/AA/
+        ./WikiFilter/WikiFilter ${{github.event.inputs.dict}}  text/AA/wiki_0${{ matrix.artifact }}.txt
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_0${{ matrix.artifact }}.csv
+        path: text/AA/wiki_*.csv
+
+  merge:
+    needs: filter
+    runs-on: ubuntu-latest
+        
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get -y install wget  p7zip-full
+        python -m pip install --upgrade pip
+        pip install pytest
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: text/AA/
+
+    - name: Prepare Enviroment
+      run: |
+        git clone https://github.com/tumuyan/rime-melt --depth 1
+        python scripts/merge_csv.py  text/AA merge 0 filted.csv
+        opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c rime-melt/others/t2s.json
+        python scripts/merge_csv.py  text/AA filted.chs 2 merge.chs.csv
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_result_${{needs.prepare.outputs.VERSION}}_${{needs.prepare.outputs.wikiextractor_param}}"
+        path: text/AA/filted.chs.csv
