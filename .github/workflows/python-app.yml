@@ -93,6 +93,9 @@ jobs:
     - name: Check invalid file
       continue-on-error: true
       run: |
+        ls
+        ls ../
+        ls ../scripts/
         ls ../scripts/one_line.py
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           rm *xml.bz2
