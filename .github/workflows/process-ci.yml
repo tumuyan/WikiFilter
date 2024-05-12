@@ -196,6 +196,8 @@ jobs:
         WIKIEXTRACTOR_PARAM: ${{needs.prepare.outputs.wikiextractor_param}}
         VERSION: ${{needs.prepare.outputs.VERSION}}
       run: |
+        echo "VERSION=$VERSION" 
+        echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" 
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
         echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" >> "$GITHUB_ENV"
         cd WikiFilter
