@@ -95,24 +95,6 @@ jobs:
     - name: Check invalid file
       continue-on-error: true
       run: |
-        pwd
-        echo ls ../
-        ls ../
-        echo ls ../scripts
-        ls ../scripts
-        echo ls ../scripts/*
-        ls ../scripts/*
-        cd WikiFilter
-        
-        pwd
-        echo ls ../
-        ls ../
-        echo ls ../scripts
-        ls ../scripts
-        echo ls ../scripts/*
-        ls ../scripts/*
-        
-        python ../scripts/one_line.py 
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           rm *xml.bz2
         else
@@ -160,7 +142,7 @@ jobs:
       # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
       if: ${{ env.text_files_exist != 'true' }}
       run: |
-        python ../scripts/one_line.py text/AA 100
+        python scripts/one_line.py text/AA 100
         ls -l text/AA
         
     - name: Store Artifact Count
@@ -204,10 +186,16 @@ jobs:
 
     - name: Run WikiFilter
       run: |
-        pwd
-        cd $GITHUB_WORKSPACE
-        pwd
         cd WikiFilter
-        ls -l
+        pwd
+        ls
+        g++ -o WikiFilter  WikiFilter.cpp
+        chmod +x WikiFilter; ls -l
         ls  text/file${{ matrix.artifact }}.txt
-        ./WikiFilter  text/AA/wiki_0${{ matrix.artifact }}
+        ./WikiFilter/WikiFilter  text/AA/wiki_0${{ matrix.artifact }}
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_0${{ matrix.artifact }}.csv
+        path: text/AA/wiki_*.csv
