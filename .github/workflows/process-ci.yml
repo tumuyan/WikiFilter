@@ -124,7 +124,7 @@ jobs:
 
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           echo "Fail: Not exisit zhwiki-${VERSION}-pages-articles-multistream.xml.bz2"
-          rm *xml.bz2
+          rm -f *xml.bz2
         else
           echo Pass: No invalid dump file
         fi        
@@ -309,8 +309,16 @@ jobs:
         opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c rime-melt/others/t2s.json
         python scripts/merge_csv.py  text/AA filted.chs 2 merge.chs.csv
 
-    - name: Upload a Build Artifact
+    - name: Upload Result
       uses: actions/upload-artifact@v4.3.3
       with:
         name: wiki_result_${{needs.prepare.outputs.VERSION}}_${{needs.prepare.outputs.wikiextractor_param}}"
-        path: text/AA/filted.chs.csv
+        path: |
+         text/AA/*.chs.*
+         text/AA/*.merge.*
+         
+    - name: Upload Simplified Chinese Result
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_result_${{needs.prepare.outputs.VERSION}}_${{needs.prepare.outputs.wikiextractor_param}}"
+        path: text/AA/filted.chs.txt
