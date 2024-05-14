@@ -5,43 +5,31 @@
 // 前者能表示的最大大小为2 ^ 32 - 1，后者为2 ^ 64 - 1。
 
 // 也就是说，32位程序最大处理4G文件
-#include <iostream>
-
 
 #include <regex>
-#include <fstream>
 #include <vector>
 #include <sstream>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <chrono>
 #include <iostream>
+#include <fstream>
+
 using namespace std;
 
-std::mutex file_mutex;
+mutex file_mutex;
 atomic_int a = 0;; // 第几次分配任务
 
-void writeToFile(const std::string& data, int numWrites, const std::string& path) {
-	file_mutex.lock();
-	std::ofstream file(path, std::ios::app); // 以追加模式打开文件
-	if (file.is_open()) {
-		for (int i = 0; i < numWrites; i++) {
-			file << data << std::endl;
-		}
-		file.close();
-	}
-	file_mutex.unlock();
-}
-
- int process_words(std::vector<string> words, int i,int BATCH_SIZE, char** line_ptr, int LINE_SIZE, string output_path) {
+ int process_words(vector<string> words, int i,int BATCH_SIZE, char** line_ptr, int LINE_SIZE, string output_path) {
 
 	int r = 0;
 	int  b = 1;
 	int n = 0;
-	auto start = std::chrono::high_resolution_clock::now();
-	auto begin = std::chrono::high_resolution_clock::now();
+	auto start = chrono::high_resolution_clock::now();
+	auto begin = chrono::high_resolution_clock::now();
 
-	std::stringstream ss;
+	stringstream ss;
 
 	for (int j = BATCH_SIZE * i; j < words.size();j++) {
 		string word = words[j];
@@ -70,14 +58,14 @@ void writeToFile(const std::string& data, int numWrites, const std::string& path
 		n++;
 
 		if (b == BATCH_SIZE || j==words.size()-1) {
-			auto end = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double> duration = end - start;
-			std::chrono::duration<double> duration2 = end - begin;
-			std::cout << "Thread[" << i <<"] " << n << "\tBatch time: " << duration.count() << ", Total time: " << duration2.count() << ", Avg " << n / duration2.count() << " it/s" << std::endl;
-			start = std::chrono::high_resolution_clock::now();
+			auto end = chrono::high_resolution_clock::now();
+			chrono::duration<double> duration = end - start;
+			chrono::duration<double> duration2 = end - begin;
+			cout << "Thread[" << i <<"] " << n << "\tBatch time: " << duration.count() << ", Total time: " << duration2.count() << ", Avg " << n / duration2.count() << " it/s" << endl;
+			start = chrono::high_resolution_clock::now();
 
 			file_mutex.lock();
-			std::ofstream file(output_path, std::ios::app); // 以追加模式打开文件
+			ofstream file(output_path, ios::app); // 以追加模式打开文件
 			if (file.is_open()) {
 				file << ss.str();
 				file.close();
@@ -224,8 +212,5 @@ int main(int argc, char* argv[]) {
 		//std::cout << "text file " << i - 1 << " math " << r << " words, path: " << argv[i] << std::endl;
 	}
 	}
-
-
-
 	return 0;
 }
