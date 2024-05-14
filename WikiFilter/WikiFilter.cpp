@@ -19,7 +19,7 @@
 using namespace std;
 
 std::mutex file_mutex;
-std::atomic<int> a(0); // 第几次分配任务
+atomic_int a = 0;; // 第几次分配任务
 
 void writeToFile(const std::string& data, int numWrites, const std::string& path) {
 	file_mutex.lock();
@@ -83,8 +83,8 @@ void writeToFile(const std::string& data, int numWrites, const std::string& path
 				file.close();
 			}
 
-			j = BATCH_SIZE * (a.load())-1;
-			a.fetch_add(1);
+			j = BATCH_SIZE * a-1;
+			a++;
 
 			file_mutex.unlock();
 
@@ -175,7 +175,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 
 	std::thread* th=new std::thread[num_threads];
 
-	a.store(num_threads);
+	a= num_threads;
 	for ( int i = 0; i < num_threads; i++) {
 		th[i] = thread(process_words, words, i, batch_size, line_ptr, LINE_SIZE, raw_path + ".filted.csv");
 	}
