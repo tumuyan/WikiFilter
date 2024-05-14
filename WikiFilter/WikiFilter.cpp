@@ -19,7 +19,7 @@
 using namespace std;
 
 std::mutex file_mutex;
-std::atomic<int> a; // 第几次分配任务
+std::atomic<int> a(0); // 第几次分配任务
 
 void writeToFile(const std::string& data, int numWrites, const std::string& path) {
 	file_mutex.lock();
