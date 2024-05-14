@@ -183,24 +183,26 @@ int main(int argc, char* argv[]) {
 	string param1 = argv[1];
 	int r = 0;
 
-
-	// 获取硬件支持的并发线程数
+	// 设置线程数
 	int num_threads = 1;
 	if (argc > 3) {
 		num_threads = atoi(argv[3]);
 	}
 	else {
+		// 获取硬件支持的并发线程数
 		num_threads = thread::hardware_concurrency();
 		if (num_threads >= 16) {
-			num_threads = 2; // 虚拟环境检测到的核心数量可能不等于被分配的数量
+			// 虚拟环境检测到的核心数量可能不等于被分配的数量
 			cerr << "threads " << num_threads << " -> 2" << endl;
+			num_threads = 2; 
 		}
 	}
 	if (num_threads == 0) {
-		num_threads = 1; // 默认使用一个线程
 		cerr << "threads 0 -> 1" << endl;
-	}
-	cout << "threads = " << num_threads << endl;
+		num_threads = 1; // 默认使用一个线程
+	} else
+		cout << "threads = " << num_threads << endl;
+
 	return process_files(argv[2], param1, num_threads);
 
 
