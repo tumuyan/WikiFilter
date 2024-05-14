@@ -84,32 +84,32 @@ atomic_int a = 0;; // 第几次分配任务
 	return r;
 }
 
-static int process_files(const std::string& raw_path, const std::string& txt_path, const bool print_result) {
-	std::ifstream raw_file(raw_path, std::ios::binary | std::ios::ate);
-	std::ifstream txt_file(txt_path);
-	std::ofstream output_file(raw_path + ".filted.csv",ios_base::out);
+static int process_files(const string& raw_path, const string& txt_path) {
+	ifstream raw_file(raw_path, ios::binary | ios::ate);
+	ifstream txt_file(txt_path);
+	ofstream output_file(raw_path + ".filted.csv",ios_base::out);
 	output_file.close();
 	// 设置文件编码为 UTF-8
-	txt_file.imbue(std::locale("en_US.UTF-8"));
-	raw_file.imbue(std::locale("en_US.UTF-8"));
+	txt_file.imbue(locale("en_US.UTF-8"));
+	raw_file.imbue(locale("en_US.UTF-8"));
 
 	if (!raw_file.is_open() || !txt_file.is_open()) {
-		std::cerr << "Error opening file! "  << std::endl;
+		cerr << "Error opening file! "  << endl;
 		return -1;
 	}
 
-	std::streamsize size = raw_file.tellg();
-	raw_file.seekg(0, std::ios::beg);
+	streamsize size = raw_file.tellg();
+	raw_file.seekg(0, ios::beg);
 
     char* raw = new char[size+1];
 	raw[size] = '0';
 	if (!raw_file.read(raw, size)) {
-		std::cerr << "Error reading file! " << std::endl;
+		cerr << "Error reading file! " << endl;
 		return -2;
 	}
 
 	// 数据集分行
-	std::vector<unsigned long> line;
+	vector<unsigned long> line;
 	line.push_back(0);
 	for (unsigned long i = 0; i < size; i++) {
 		if (raw[i] == '\n') {
@@ -132,28 +132,32 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 	}
 	LINE_SIZE--;
 
+	cout << "text file lines = " << LINE_SIZE << endl;
+
 	// 读取词库文件
-	std::string word;
-	std::regex pattern("\\s+");
-	std::vector<std::string> words;
-	while (std::getline(txt_file, word)) {
-		word = std::regex_replace(word, pattern, "");
+	string word;
+	regex pattern("\\s+");
+	vector<string> words;
+	while (getline(txt_file, word)) {
+		word = regex_replace(word, pattern, "");
 		if(word.length()>1)// 跳过单字
 			words.push_back(word); 
 	}
 
+	cout << "dict file lines = " << words.size() << endl;
+
 	// 获取硬件支持的并发线程数
-	 int num_threads = std::thread::hardware_concurrency();
+	 int num_threads = thread::hardware_concurrency();
 	if (num_threads == 0) {
 	    num_threads = 1; // 默认使用一个线程
-	    std::cerr << "threads 0 -> 1" << std::endl;
+	    cerr << "threads 0 -> 1" << endl;
 	}
 	else if (num_threads >= 16) {
 	    num_threads = 2; // 虚拟环境检测到的核心数量可能不等于被分配的数量
-	    std::cerr << "threads " << num_threads << " -> 1" << std::endl;
+	    cerr << "threads " << num_threads << " -> 1" << endl;
 	}
 	else {
-	    std::cout << "threads =" << num_threads << std::endl;
+	    cout << "threads = " << num_threads << endl;
 	}
 
 	// 设置批的大小
@@ -161,7 +165,7 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 	if (num_threads * batch_size > words.size())
 		batch_size =int( words.size() / num_threads) + 1;
 
-	std::thread* th=new std::thread[num_threads];
+	thread* th=new thread[num_threads];
 
 	a= num_threads;
 	for ( int i = 0; i < num_threads; i++) {
@@ -183,33 +187,20 @@ static int process_files(const std::string& raw_path, const std::string& txt_pat
 int main(int argc, char* argv[]) {
 	// 检查命令行参数的数量
 	if (argc < 3) {
-		std::cout << "用法: " << argv[0] << " <dict file path> <text file path>" << std::endl;
+		cout << "用法: " << argv[0] << " <dict file path> <text file path>" << endl;
 		return 1;
 	}
 
 	// 获取参数
-
-	std::string param1 = argv[1];
-
-	// 打印参数
-	//std::cout << "dict file path: " << param1 << std::endl;
-	//for (int i = 2; i < argc; i++) {
-	//	std::cout << "dict file path[" << i - 1 << "]: " << argv[i] << std::endl;
-	//}
-
-	//	std::cout << "Matching file..." << std::endl;
-
-	// bool single_input = (argc == 3);
+	string param1 = argv[1];
 	if (argc == 3) {
-		int r = process_files(argv[2], param1, false);
-		//std::cout << "text file math " << r << " words, path: " << argv[2] << std::endl;
+		int r = process_files(argv[2], param1);
         if (r<1)
             return r-1000;
 	}
 	else {
 	for (int i = 2; i < argc; i++) {
-		int r = process_files(argv[i], param1, false);
-		//std::cout << "text file " << i - 1 << " math " << r << " words, path: " << argv[i] << std::endl;
+		int r = process_files(argv[i], param1);
 	}
 	}
 	return 0;
