@@ -24,7 +24,7 @@ atomic_int a = 0;; // 第几次分配任务
  int process_words(vector<string> words, int i,int BATCH_SIZE, char** line_ptr, int LINE_SIZE, string output_path) {
 
 	int r = 0;
-	int  b = 1;
+	int  b = 0;
 	int n = 1;
 	auto start = chrono::high_resolution_clock::now();
 	auto begin = chrono::high_resolution_clock::now();
@@ -61,7 +61,7 @@ atomic_int a = 0;; // 第几次分配任务
 			auto end = chrono::high_resolution_clock::now();
 			chrono::duration<double> duration = end - start;
 			chrono::duration<double> duration2 = end - begin;
-			cout << "Thread[" << i <<"] " << n << "\tBatch time: " << duration.count() << ", Total time: " << duration2.count() << ", Avg " << n / duration2.count() << " it/s" << endl;
+			cout << "Thread[" << i <<"] " << n << "\tBatch time: " << duration.count() << ", Total time: " << duration2.count() << ", Avg " << n / duration2.count() << " it/s \t"<< j-b+2 <<"->"  << j+1 << endl;
 			start = chrono::high_resolution_clock::now();
 
 			file_mutex.lock();
@@ -77,7 +77,7 @@ atomic_int a = 0;; // 第几次分配任务
 			file_mutex.unlock();
 
 			ss.clear();
-			b = 1;
+			b = 0;
 		}
 
 	}
