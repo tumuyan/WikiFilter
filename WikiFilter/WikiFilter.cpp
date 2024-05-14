@@ -25,7 +25,7 @@ atomic_int a = 0;; // 第几次分配任务
 
 	int r = 0;
 	int  b = 1;
-	int n = 0;
+	int n = 1;
 	auto start = chrono::high_resolution_clock::now();
 	auto begin = chrono::high_resolution_clock::now();
 
@@ -84,7 +84,7 @@ atomic_int a = 0;; // 第几次分配任务
 	return r;
 }
 
-static int process_files(const string& raw_path, const string& txt_path) {
+static int process_files(const string& raw_path, const string& txt_path, int num_threads) {
 	ifstream raw_file(raw_path, ios::binary | ios::ate);
 	ifstream txt_file(txt_path);
 	ofstream output_file(raw_path + ".filted.csv",ios_base::out);
@@ -132,7 +132,7 @@ static int process_files(const string& raw_path, const string& txt_path) {
 	}
 	LINE_SIZE--;
 
-	cout << "text file lines = " << LINE_SIZE << endl;
+	cout << "text file lines = " << LINE_SIZE << ", " << raw_path << endl;
 
 	// 读取词库文件
 	string word;
@@ -144,34 +144,22 @@ static int process_files(const string& raw_path, const string& txt_path) {
 			words.push_back(word); 
 	}
 
-	cout << "dict file lines = " << words.size() << endl;
+	cout << "dict file lines = " << words.size() << ", " << txt_path << endl;
 
-	// 获取硬件支持的并发线程数
-	 int num_threads = thread::hardware_concurrency();
-	if (num_threads == 0) {
-	    num_threads = 1; // 默认使用一个线程
-	    cerr << "threads 0 -> 1" << endl;
-	}
-	else if (num_threads >= 16) {
-	    num_threads = 2; // 虚拟环境检测到的核心数量可能不等于被分配的数量
-	    cerr << "threads " << num_threads << " -> 1" << endl;
-	}
-	else {
-	    cout << "threads = " << num_threads << endl;
-	}
 
 	// 设置批的大小
 	 int batch_size = 500;
 	if (num_threads * batch_size > words.size())
 		batch_size =int( words.size() / num_threads) + 1;
 
-	thread* th=new thread[num_threads];
 
-	a= num_threads;
-	for ( int i = 0; i < num_threads; i++) {
+	thread* th = new thread[num_threads];
+
+	a = num_threads;
+	for (int i = 0; i < num_threads; i++) {
 		th[i] = thread(process_words, words, i, batch_size, line_ptr, LINE_SIZE, raw_path + ".filted.csv");
 	}
-	for ( int i = 0; i < num_threads; i++) {
+	for (int i = 0; i < num_threads; i++) {
 		th[i].join();
 	}
 
@@ -187,21 +175,33 @@ static int process_files(const string& raw_path, const string& txt_path) {
 int main(int argc, char* argv[]) {
 	// 检查命令行参数的数量
 	if (argc < 3) {
-		cout << "用法: " << argv[0] << " <dict file path> <text file path>" << endl;
+		cout << "用法: " << argv[0] << " <dict file path> <text file path> [thread number]" << endl;
 		return 1;
 	}
 
 	// 获取参数
 	string param1 = argv[1];
-	if (argc == 3) {
-		int r = process_files(argv[2], param1);
-        if (r<1)
-            return r-1000;
+	int r = 0;
+
+
+	// 获取硬件支持的并发线程数
+	int num_threads = 1;
+	if (argc > 3) {
+		num_threads = atoi(argv[3]);
 	}
 	else {
-	for (int i = 2; i < argc; i++) {
-		int r = process_files(argv[i], param1);
+		num_threads = thread::hardware_concurrency();
+		if (num_threads >= 16) {
+			num_threads = 2; // 虚拟环境检测到的核心数量可能不等于被分配的数量
+			cerr << "threads " << num_threads << " -> 2" << endl;
+		}
 	}
+	if (num_threads == 0) {
+		num_threads = 1; // 默认使用一个线程
+		cerr << "threads 0 -> 1" << endl;
 	}
-	return 0;
+	cout << "threads = " << num_threads << endl;
+	return process_files(argv[2], param1, num_threads);
+
+
 }
