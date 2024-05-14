@@ -234,7 +234,7 @@ jobs:
       run: |
         if [ ! -f "dict.txt" ]; then
           # 设置GitHub仓库URL和需要包含的字符串
-          REPO_URL="https://api.github.com/repos/${{ steps.repo_info.outputs.REPOSITORY_NAME }}/${{ steps.repo_info.outputs.REPOSITORY_OWNER }}/releases/latest"
+          REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
           
           # 获取最新发布版本的信息
           RELEASE_INFO=$(wget -qO- "$REPO_URL")
