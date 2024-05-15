@@ -45,7 +45,7 @@ jobs:
         python-version: "3.10"
     - name: Install dependencies
       run: |
-        sudo apt-get -y install wget  p7zip-full
+        sudo apt-get -y install wget  p7zip-full ripgrep 
         python -m pip install --upgrade pip
         pip install pytest
     - name: Set Date Version
@@ -127,7 +127,7 @@ jobs:
           rm -f *xml.bz2
         else
           echo Pass: No invalid dump file
-        fi        
+        fi
 
     - name: Download wiki dump
       if: ${{env.text_files_exist != 'true'}}
@@ -158,6 +158,22 @@ jobs:
       # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
       if: ${{ env.text_files_exist != 'true' }}
       run: |
+        cd text/AA
+        # 设置输出文件
+        output_file="wiki_translate.txt"
+
+        # 获取所有匹配的文件名
+        files=(wiki_??)
+
+        # 处理第一个文件
+        first_file="${files[0]}"
+        rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$first_file" > "$output_file"
+
+        # 处理其他文件
+        for file in "${files[@]:1}"; do
+          rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$file" >> "$output_file"
+        done
+
         python scripts/one_line.py text/AA 100
         ls -l text/AA
 
@@ -309,7 +325,7 @@ jobs:
         echo ls $source_dir
         ls $source_dir -l
         mv $source_dir/*/* $source_dir
-        rmdir $source_dir/*
+        # rmdir $source_dir/*
         # # 遍历文件夹内的所有zip文件
         # for file in "$source_dir"/*; do
         #     # 检查文件是否存在
