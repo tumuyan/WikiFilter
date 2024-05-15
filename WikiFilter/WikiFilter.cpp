@@ -24,14 +24,18 @@ atomic_int a = 0;; // 第几次分配任务
  int process_words(vector<string> words, int i,int BATCH_SIZE, char** line_ptr, int LINE_SIZE, string output_path) {
 
 	int r = 0;
-	int  b = 0;
-	int n = 1;
 	auto start = chrono::high_resolution_clock::now();
 	auto begin = chrono::high_resolution_clock::now();
 
 	stringstream ss;
 
-	for (int j = BATCH_SIZE * i; j < words.size();j++) {
+
+	int j = BATCH_SIZE * i;
+	int batch_start = j + 1;
+	int batch_progress = 0;
+	int n = 0;
+
+	for (; j < words.size();j++) {
 		string word = words[j];
 		const size_t w_size = word.size();
 		char* w = const_cast<char*>(word.data());
@@ -54,14 +58,16 @@ atomic_int a = 0;; // 第几次分配任务
 			r++;
 			ss << word << "\t" << k << "\n";
 		}
-		b++;
+		batch_progress++;
 		n++;
 
-		if (b == BATCH_SIZE || j==words.size()-1) {
+		if (batch_progress == BATCH_SIZE || j == words.size() - 1) {
 			auto end = chrono::high_resolution_clock::now();
 			chrono::duration<double> duration = end - start;
 			chrono::duration<double> duration2 = end - begin;
-			cout << "Thread[" << i <<"] " << n << "\tBatch time: " << duration.count() << ", Total time: " << duration2.count() << ", Avg " << n / duration2.count() << " it/s \t"<< j-b+2 <<"->"  << j+1 << endl;
+			cout << "Thread[" << i << "] " << n << "\t" << batch_start << "-" << j + 1
+				<< ",\t" << duration.count() << " s,\tTotal: " << duration2.count()
+				<< "\t" << n / duration2.count() << " it/s" << endl;
 			start = chrono::high_resolution_clock::now();
 
 			file_mutex.lock();
@@ -71,13 +77,14 @@ atomic_int a = 0;; // 第几次分配任务
 				file.close();
 			}
 
-			j = BATCH_SIZE * a-1;
+			j = BATCH_SIZE * a - 1;
 			a++;
 
 			file_mutex.unlock();
 
 			ss.clear();
-			b = 0;
+			batch_progress = 0;
+			batch_start = j + 1;
 		}
 
 	}
