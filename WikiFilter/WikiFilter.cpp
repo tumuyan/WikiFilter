@@ -83,6 +83,7 @@ atomic_int a = 0;; // 第几次分配任务
 			file_mutex.unlock();
 
 			ss.clear();
+			ss.str("");
 			batch_progress = 0;
 			batch_start = j + 1;
 		}
