@@ -95,7 +95,8 @@ atomic_int a = 0;; // 第几次分配任务
 static int process_files(const string& raw_path, const string& txt_path, int num_threads) {
 	ifstream raw_file(raw_path, ios::binary | ios::ate);
 	ifstream txt_file(txt_path);
-	ofstream output_file(raw_path + ".filted.csv",ios_base::out);
+	const string output_path = raw_path + ".filted.csv";
+	ofstream output_file(output_path,ios_base::out);
 	output_file.close();
 	// 设置文件编码为 UTF-8
 	txt_file.imbue(locale("en_US.UTF-8"));
@@ -165,7 +166,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 
 	a = num_threads;
 	for (int i = 0; i < num_threads; i++) {
-		th[i] = thread(process_words, words, i, batch_size, line_ptr, LINE_SIZE, raw_path + ".filted.csv");
+		th[i] = thread(process_words, words, i, batch_size, line_ptr, LINE_SIZE, output_path);
 	}
 	for (int i = 0; i < num_threads; i++) {
 		th[i].join();

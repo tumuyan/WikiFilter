@@ -80,7 +80,7 @@ jobs:
     
     - name: Cache dump files
       id: cache-dump
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       env:
         cache-name: cache-dump
       with:
@@ -90,7 +90,7 @@ jobs:
         
     - name: Cache Text files
       id: cache-text-files
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       env:
         cache-name: cache-text-files
       with:
@@ -98,18 +98,18 @@ jobs:
           text/AA/*.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}-${{env.wikiextractor_param}}
 
-    - name:  Cache Text files (only for test)
-      if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
-      id: cache-text-files-test
-      uses: actions/cache@v3
-      env:
-        cache-name: cache-text-files
-      with:
-        path: |
-          text/AA/*.txt
-        key: ${{ env.cache-name }}-${{ env.VERSION}}-test
-        restore-keys: |
-          ${{ env.cache-name }}-${{ env.VERSION}}
+    # - name:  Cache Text files (only for test)
+    #   if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
+    #   id: cache-text-files-test
+    #   uses: actions/cache@v4
+    #   env:
+    #     cache-name: cache-text-files
+    #   with:
+    #     path: |
+    #       text/AA/*.txt
+    #     key: ${{ env.cache-name }}-${{ env.VERSION}}-test
+    #     restore-keys: |
+    #       ${{ env.cache-name }}-${{ env.VERSION}}
           
 
     - name: Check invalid file
@@ -208,7 +208,7 @@ jobs:
 
     - name: Cache Text files
       id: cache-text-files
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       env:
         cache-name: cache-text-files
       with:
@@ -307,20 +307,18 @@ jobs:
         ls
         source_dir="text/AA/"
         echo ls $source_dir
-        ls $source_dir
+        ls $source_dir -l
 
         # 遍历文件夹内的所有zip文件
-        for file in "$source_dir"/*.zip; do
+        for file in "$source_dir"/*; do
             # 检查文件是否存在
             if [ -f "$file" ]; then
-                # 获取文件名(不包括扩展名)
-                filename=$(basename "$file" .zip)
                 # 解压 7z 文件到当前目录
-                7z x -o"$source_dir" "$file"
-                echo "成功解压 $file 到 $source_dir"
+                7z x "$file"
+                echo "解压 $file 到 $source_dir"
             fi
         done
-        ls $source_dir 
+        ls $source_dir -l
         git clone https://github.com/tumuyan/rime-melt --depth 1
         python scripts/merge_csv.py  text/AA merge 0 filted.csv
         opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c rime-melt/others/t2s.json
