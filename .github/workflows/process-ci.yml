@@ -14,11 +14,15 @@ on:
         required: false
         default: ''
       dict:
-        description: '词库文件名的关键字（从release自动下载）'
+        description: '词库文件名的关键字（下载时保存的文件名）'
         required: false
         default: 'dict.txt'
       dict_url:
         description: '词库文件下载路径'
+        required: false
+        default: ''
+      dict_tag:
+        description: '打包文件使用的标签'
         required: false
         default: ''
       wikiextractor_param:
@@ -40,7 +44,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: "3.10"
     - name: Install dependencies
@@ -177,17 +181,6 @@ jobs:
         python scripts/one_line.py text/AA 100
         ls -l text/AA
 
-    # - name: Upload artifacts
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: build-artifacts
-    #     path: |
-    #       text/AA/*.txt
-
-    - name: Store Artifact Count
-      id: artifact_count
-      run: echo "::set-output name=count::$(ls -1 text/AA/*.txt | wc -l)"
-
   filter:
     needs: prepare
     runs-on: ubuntu-latest
@@ -195,11 +188,11 @@ jobs:
     # 根据上一个 job 构建的产物数量,动态生成并发任务
     strategy:
       matrix:
-        artifact: [0, 1, 2, 3, 4]
+        artifact: [0, 1, 2, 3, 4, 5]
         
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
@@ -238,6 +231,12 @@ jobs:
       run: |
         git clone ${{github.event.inputs.url}} --depth 1 text
 
+    - name: Check Text File
+      run: |
+        if [ ! -f text/AA/wiki_0${{ matrix.artifact }}.txt ]; then
+          echo "file not found, text/AA/wiki_0${{ matrix.artifact }}.txt"
+          exit 1
+        fi
 
     - name: Download dict (Dict url)
       continue-on-error: true
@@ -304,7 +303,7 @@ jobs:
         
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install dependencies
       run: |
@@ -349,7 +348,7 @@ jobs:
     - name: Upload Result
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_${{needs.prepare.outputs.VERSION}}_${{needs.prepare.outputs.wikiextractor_param}}
+        name: wiki_result_all
         path: |
          text/AA/*.chs.*
          text/AA/*.merge.*
@@ -358,6 +357,6 @@ jobs:
     - name: Upload Simplified Chinese Result
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_${{needs.prepare.outputs.VERSION}}_${{needs.prepare.outputs.wikiextractor_param}}
+        name: wiki_result_chs_dict_${{github.events.inputs.dict_tag}}
         path: |
           text/AA/filted.chs.txt
