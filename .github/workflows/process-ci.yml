@@ -311,6 +311,7 @@ jobs:
   merge:
     needs: filter
     runs-on: ubuntu-latest
+    if: always()
         
     steps:
     - name: Checkout Repository
