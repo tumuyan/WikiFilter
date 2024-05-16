@@ -194,13 +194,7 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get -y install wget  p7zip-full
-        python -m pip install --upgrade pip
-        pip install pytest
-
-    - name: Build WikiFilter
+    - name: Set Env
       env:
         WIKIEXTRACTOR_PARAM: ${{needs.prepare.outputs.wikiextractor_param}}
         VERSION: ${{needs.prepare.outputs.VERSION}}
@@ -209,11 +203,6 @@ jobs:
         echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" 
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
         echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" >> "$GITHUB_ENV"
-        cd WikiFilter
-        pwd
-        ls
-        g++ -o WikiFilter  WikiFilter.cpp
-        chmod +x WikiFilter; ls -l
 
     - name: Cache Text files
       id: cache-text-files
@@ -225,18 +214,25 @@ jobs:
           text/AA/*.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}-${{env.wikiextractor_param}}
 
-      
-    - name: Download dataset
-      if: ${{github.event.inputs.url}}
-      run: |
-        git clone ${{github.event.inputs.url}} --depth 1 text
-
     - name: Check Text File
       run: |
         if [ ! -f text/AA/wiki_0${{ matrix.artifact }}.txt ]; then
           echo "file not found, text/AA/wiki_0${{ matrix.artifact }}.txt"
           exit 1
         fi
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get -y install wget  p7zip-full
+        python -m pip install --upgrade pip
+        pip install pytest
+
+    # - name: Download dataset
+    #   if: ${{github.event.inputs.url}}
+    #   run: |
+    #     git clone ${{github.event.inputs.url}} --depth 1 text
+
+
     - name: Download dict (Dict url)
       continue-on-error: true
       if: ${{github.event.inputs.dict_url != '' }}
@@ -282,6 +278,17 @@ jobs:
     #     name: build-artifacts
     #     path: text/AA/
 
+    - name: Build WikiFilter
+      env:
+        WIKIEXTRACTOR_PARAM: ${{needs.prepare.outputs.wikiextractor_param}}
+        VERSION: ${{needs.prepare.outputs.VERSION}}
+      run: |
+        cd WikiFilter
+        pwd
+        ls
+        g++ -o WikiFilter  WikiFilter.cpp
+        chmod +x WikiFilter; ls -l
+
     - name: Run WikiFilter
       run: |
         ls -l
@@ -297,7 +304,7 @@ jobs:
         path: text/AA/wiki_*.csv
 
     - name: for Skip
-      if: steps.check_file.outcome == 'skipped'
+      if: ${{ failure() }}
       run: ls -l ;echo ls text/AA; ls -l text/AA
 
   merge:
