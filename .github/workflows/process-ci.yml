@@ -132,6 +132,7 @@ jobs:
         if ls text/AA/*.txt 1> /dev/null 2>&1; then
           echo "text_files_exist=true" >> "$GITHUB_ENV"
           echo "Pass: Cached text file"
+          ls -l text/AA/
         else
           echo "Fail: No cached text file"
         fi
@@ -168,16 +169,22 @@ jobs:
         git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor ${{github.event.inputs.wikiextractor_param}} zhwiki.xml
 
+    - name:  Extracted doc to one-line-article txt
+      if: ${{ env.text_files_exist != 'true' }}
+      run: |
+        python scripts/one_line.py text/AA 100
+        ls -l text/AA
+
     - name:  Make OpenCC Data
       if: ${{ steps.cache-opencc-files.outputs.cache-hit != 'true' }}
       # if: ${{ env.text_files_exist != 'true' }}
       run: |
         cd text/AA
         # 设置输出文件
-        output_file="wiki.translate.txt"
+        output_file="../../wiki.translate.txt"
 
         # 获取所有匹配的文件名
-        files=(wiki_??)
+        files=(wiki_??.txt)
 
         # 处理第一个文件
         first_file="${files[0]}"
@@ -189,13 +196,9 @@ jobs:
         done
 
         cd ../../
-        python scripts/merge_opencc.py text/AA scripts/wiki.opencc.txt text/AA/wiki.translate.txt
+        python scripts/merge_opencc.py text/AA scripts/wiki.opencc.txt  wiki.translate.txt
+        rm 
 
-    - name:  Extracted doc to one-line-article txt
-      if: ${{ env.text_files_exist != 'true' }}
-      run: |
-        python scripts/one_line.py text/AA 100
-        ls -l text/AA
   filter:
     needs: prepare
     outputs:
