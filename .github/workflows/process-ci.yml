@@ -197,7 +197,6 @@ jobs:
 
         cd ../../
         python scripts/merge_opencc.py text/AA scripts/wiki.opencc.txt  wiki.translate.txt
-        rm 
 
   filter:
     needs: prepare
