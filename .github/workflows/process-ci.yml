@@ -369,6 +369,6 @@ jobs:
     - name: Upload Simplified Chinese Result
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_chs_dict_${{github.events.inputs.dict_tag}}
+        name: wiki_result_chs_dict_${{github.event.inputs.dict_tag}}
         path: |
           text/AA/filted.chs.txt
