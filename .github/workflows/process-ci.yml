@@ -217,12 +217,13 @@ jobs:
 
     - name: Check Text File
       run: |
-        if [ ! -f text/AA/wiki_0${{ matrix.artifact }}.txt ]; then
+        if [ -f text/AA/wiki_0${{ matrix.artifact }}.txt ]; then
           echo "file not found, text/AA/wiki_0${{ matrix.artifact }}.txt"
-          exit 1
+          echo "EXISTS=true" >> "$GITHUB_ENV"
         fi
 
     - name: Install dependencies
+      if: env.EXISTS=='true'
       run: |
         sudo apt-get -y install wget  p7zip-full
         python -m pip install --upgrade pip
@@ -236,12 +237,12 @@ jobs:
 
     - name: Download dict (Dict url)
       continue-on-error: true
-      if: ${{github.event.inputs.dict_url != '' }}
+      if: github.event.inputs.dict_url != '' && env.EXISTS=='true'
       run: |
         wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
     - name: Download dict (Github Release)
       continue-on-error: true
-      if: ${{github.event.inputs.dict_url == '' }}
+      if: github.event.inputs.dict_url == '' && env.EXISTS=='true'
       run: |
         if [ ! -f "dict.txt" ]; then
           # 设置GitHub仓库URL和需要包含的字符串
@@ -261,7 +262,7 @@ jobs:
         fi
     - name: Download dict (Wiki Dump)
       continue-on-error: true
-      if: ${{github.event.inputs.dict_url == '' }}
+      if: github.event.inputs.dict_url == '' && env.EXISTS=='true'
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         if [ ! -f "dict.txt" ]; then
@@ -283,6 +284,7 @@ jobs:
       env:
         WIKIEXTRACTOR_PARAM: ${{needs.prepare.outputs.wikiextractor_param}}
         VERSION: ${{needs.prepare.outputs.VERSION}}
+      if: env.EXISTS=='true'
       run: |
         cd WikiFilter
         pwd
@@ -291,6 +293,7 @@ jobs:
         chmod +x WikiFilter; ls -l
 
     - name: Run WikiFilter
+      if: env.EXISTS=='true'
       run: |
         ls -l
         # mkdir -p --ignore-existing text/AA
@@ -300,12 +303,13 @@ jobs:
 
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4.3.3
+      if: env.EXISTS=='true'
       with:
         name: wiki_0${{ matrix.artifact }}.csv
         path: text/AA/wiki_*.csv
 
     - name: for Skip
-      if: ${{ failure() }}
+      if: env.EXISTS!='true'
       run: ls -l ;echo ls text/AA; ls -l text/AA
 
   merge:
