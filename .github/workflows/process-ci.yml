@@ -306,7 +306,6 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v2
 
-
     - name: Install dependencies
       run: |
         sudo apt-get -y install wget  p7zip-full opencc
@@ -335,11 +334,17 @@ jobs:
         #         echo "解压 $file 到 $source_dir"
         #     fi
         # done
+        echo ls $source_dir
         ls $source_dir -l
         git clone https://github.com/tumuyan/rime-melt --depth 1
+        
+        echo merge csv
         python scripts/merge_csv.py  text/AA merge 0 filted.csv
+        echo opencc
         opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c rime-melt/others/t2s.json
+        echo merge and filte
         python scripts/merge_csv.py  text/AA filted.chs 2 merge.chs.csv
+        ls $source_dir -l
 
     - name: Upload Result
       uses: actions/upload-artifact@v4.3.3
@@ -348,9 +353,11 @@ jobs:
         path: |
          text/AA/*.chs.*
          text/AA/*.merge.*
+         text/AA/*.csv
          
     - name: Upload Simplified Chinese Result
       uses: actions/upload-artifact@v4.3.3
       with:
         name: wiki_result_${{needs.prepare.outputs.VERSION}}_${{needs.prepare.outputs.wikiextractor_param}}
-        path: text/AA/filted.chs.txt
+        path: |
+          text/AA/filted.chs.txt
