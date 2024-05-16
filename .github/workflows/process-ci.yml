@@ -237,7 +237,6 @@ jobs:
           echo "file not found, text/AA/wiki_0${{ matrix.artifact }}.txt"
           exit 1
         fi
-
     - name: Download dict (Dict url)
       continue-on-error: true
       if: ${{github.event.inputs.dict_url != '' }}
@@ -296,6 +295,10 @@ jobs:
       with:
         name: wiki_0${{ matrix.artifact }}.csv
         path: text/AA/wiki_*.csv
+
+    - name: for Skip
+      if: steps.check_file.outcome == 'skipped'
+      run: ls -l ;echo ls text/AA; ls -l text/AA
 
   merge:
     needs: filter
