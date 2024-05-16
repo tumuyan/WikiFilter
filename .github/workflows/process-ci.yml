@@ -9,10 +9,10 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
-      url:
-        description: 'Dataset repo'
-        required: false
-        default: ''
+      # url:
+      #   description: 'Dataset repo'
+      #   required: false
+      #   default: ''
       dict:
         description: '词库文件名的关键字（下载时保存的文件名）'
         required: false
@@ -189,6 +189,7 @@ jobs:
     strategy:
       matrix:
         artifact: [0, 1, 2, 3, 4, 5]
+      fail-fast: false
         
     steps:
     - name: Checkout Repository
