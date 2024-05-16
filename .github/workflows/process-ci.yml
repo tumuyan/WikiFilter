@@ -102,6 +102,16 @@ jobs:
           text/AA/*.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}-${{env.wikiextractor_param}}
 
+    - name: Cache Opencc files
+      id: cache-opencc-files
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-opencc-files
+      with:
+        path: |
+          scripts/*.opencc.txt
+        key: ${{ env.cache-name }}-${{ env.VERSION}}
+
     # - name:  Cache Text files (only for test)
     #   if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
     #   id: cache-text-files-test
@@ -158,13 +168,13 @@ jobs:
         git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor ${{github.event.inputs.wikiextractor_param}} zhwiki.xml
 
-    - name:  Extracted doc to one-line-article txt
-      # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
-      if: ${{ env.text_files_exist != 'true' }}
+    - name:  Make OpenCC Data
+      if: ${{ steps.cache-opencc-files.outputs.cache-hit != 'true' }}
+      # if: ${{ env.text_files_exist != 'true' }}
       run: |
         cd text/AA
         # 设置输出文件
-        output_file="wiki_translate.txt"
+        output_file="wiki.translate.txt"
 
         # 获取所有匹配的文件名
         files=(wiki_??)
@@ -178,11 +188,18 @@ jobs:
           rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$file" >> "$output_file"
         done
 
+        cd ../../
+        python scripts/merge_opencc.py text/AA scripts/wiki.opencc.txt text/AA/wiki.translate.txt
+
+    - name:  Extracted doc to one-line-article txt
+      if: ${{ env.text_files_exist != 'true' }}
+      run: |
         python scripts/one_line.py text/AA 100
         ls -l text/AA
-
   filter:
     needs: prepare
+    outputs:
+      VERSION: ${{ steps.date_version.outputs.VERSION }}
     runs-on: ubuntu-latest
     
     # 根据上一个 job 构建的产物数量,动态生成并发任务
@@ -203,6 +220,7 @@ jobs:
         echo "VERSION=$VERSION" 
         echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" 
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
         echo "wikiextractor_param=$WIKIEXTRACTOR_PARAM" >> "$GITHUB_ENV"
 
     - name: Cache Text files
@@ -225,7 +243,7 @@ jobs:
     - name: Install dependencies
       if: env.EXISTS=='true'
       run: |
-        sudo apt-get -y install wget  p7zip-full
+        sudo apt-get -y install wget  p7zip-full opencc
         python -m pip install --upgrade pip
         pip install pytest
 
@@ -321,6 +339,22 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Set Env
+      env:
+        VERSION: ${{needs.filter.outputs.VERSION}}
+      run: |
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+    - name: Cache Opencc files
+      id: cache-opencc-files
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-opencc-files
+      with:
+        path: |
+          scripts/*.opencc.txt
+        key: ${{ env.cache-name }}-${{ env.VERSION}}
+
     - name: Install dependencies
       run: |
         sudo apt-get -y install wget  p7zip-full opencc
@@ -339,32 +373,19 @@ jobs:
         echo ls $source_dir
         ls $source_dir -l
         mv $source_dir/*/* $source_dir
-        # rmdir $source_dir/*
-        # # 遍历文件夹内的所有zip文件
-        # for file in "$source_dir"/*; do
-        #     # 检查文件是否存在
-        #     if [ -f "$file" ]; then
-        #         # 解压 7z 文件到当前目录
-        #         7z x "$file"
-        #         echo "解压 $file 到 $source_dir"
-        #     fi
-        # done
-        echo ls $source_dir
-        ls $source_dir -l
-        git clone https://github.com/tumuyan/rime-melt --depth 1
         
         echo merge csv
         python scripts/merge_csv.py  text/AA merge 0 filted.csv
         echo opencc
-        opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c rime-melt/others/t2s.json
+        opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c scripts/t2s.json
         echo merge and filte
-        python scripts/merge_csv.py  text/AA filted.chs 2 merge.chs.csv
+        python scripts/merge_csv.py  text/AA filted.chs 5 merge.chs.csv
         ls $source_dir -l
 
     - name: Upload Result
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_all
+        name: wiki_result_${{ env.VERSION}}_all
         path: |
          text/AA/*.chs.*
          text/AA/*.merge.*
@@ -373,6 +394,6 @@ jobs:
     - name: Upload Simplified Chinese Result
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_chs_dict_${{github.event.inputs.dict_tag}}
+        name: wiki_result_chs_dict_${{ env.VERSION}}_${{github.event.inputs.dict_tag}}
         path: |
           text/AA/filted.chs.txt

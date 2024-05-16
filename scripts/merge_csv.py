@@ -62,11 +62,11 @@ import os
 # min_length = 100
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python script.py <input folder> <output filename> <output value filter> <input suffix filter> ")
-        print("  input folder: \t扫描.filted.csv文件的文件路径")
+        print("Usage: python merge_csv.py <input folder> <output filename> <output value filter> <input suffix filter> ")
+        print("  input folder: \t扫描目录的路径")
         print("  output filename: \t输出合并后的csv/txt文件文件名（输出时会自动增加后缀）")
-        print("  output value filter: \t输出值过滤器，设置后输出一份与之匹配的词条，默认0")
-        print("  input suffix filter: \t输文件的文件名过滤器，只处理与之匹配的文件，默认.filted.csv")
+        print("  output value filter: \t输出词频过滤器，设置后输出一份与之匹配的词条，默认0")
+        print("  input suffix filter: \t输入文件的文件名过滤器，只处理与之匹配的文件，默认.filted.csv")
         return
     input_suffix = '.filted.csv'
     output_filter = 0
