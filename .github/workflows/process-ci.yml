@@ -166,7 +166,7 @@ jobs:
         python -m wikiextractor.wikiextractor.WikiExtractor ${{github.event.inputs.wikiextractor_param}} zhwiki.xml
 
     - name:  Extracted doc to one-line-article & OpenCC
-      if: ${{ env.text_files_exist != 'true' }}
+      if:  env.text_files_exist != 'true'   ||  steps.cache-opencc-files.outputs.cache-hit != 'true'
       run: |
         python scripts/one_line.py text/AA 100
         ls -l text/AA
