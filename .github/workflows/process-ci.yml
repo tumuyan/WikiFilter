@@ -91,7 +91,17 @@ jobs:
         path: |
           *xml.bz2
         key: ${{ env.cache-name }}-${{ env.VERSION}}
-        
+
+    - name: Cache XML Doc files
+      id: xml-doc-files
+      uses: actions/cache@v4
+      env:
+        cache-name: xml-doc-files
+      with:
+        path: |
+          text/AA/wiki_??
+        key: ${{ env.cache-name }}-${{ env.VERSION}}-${{env.wikiextractor_param}}
+
     - name: Cache Text files
       id: cache-text-files
       uses: actions/cache@v4
@@ -111,20 +121,6 @@ jobs:
         path: |
           scripts/*.opencc.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}
-
-    # - name:  Cache Text files (only for test)
-    #   if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
-    #   id: cache-text-files-test
-    #   uses: actions/cache@v4
-    #   env:
-    #     cache-name: cache-text-files
-    #   with:
-    #     path: |
-    #       text/AA/*.txt
-    #     key: ${{ env.cache-name }}-${{ env.VERSION}}-test
-    #     restore-keys: |
-    #       ${{ env.cache-name }}-${{ env.VERSION}}
-          
 
     - name: Check invalid file
       continue-on-error: true
@@ -174,32 +170,6 @@ jobs:
       run: |
         python scripts/one_line.py text/AA 100
         ls -l text/AA
-
-#    - name:  Make OpenCC Data
-#      if: ${{ steps.cache-opencc-files.outputs.cache-hit != 'true' }}
-#      # if: ${{ env.text_files_exist != 'true' }}
-#      run: |
-#        cd text/AA
-#        # 设置输出文件
-#        output_file="../../wiki.translate.txt"
-#
-#        # 获取所有匹配的文件名
-#        files=(wiki_??.txt)
-#
-#        # 处理第一个文件
-#        first_file="${files[0]}"
-#        rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$first_file" > "$output_file"
-#
-#        # 处理其他文件
-#        for file in "${files[@]:1}"; do
-#          rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$file" >> "$output_file"
-#        done
-#
-#        cd ../../
-#        python scripts/merge_opencc.py ./ scripts/wiki.opencc.txt  translate.txt
-#        ls -l
-#        echo ls scripts
-#        ls scripts -l
 
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4.3.3
