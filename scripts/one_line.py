@@ -144,10 +144,14 @@ def main():
     from collections import OrderedDict
     # 根据键排序字典
     sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[0]))
-          
-    with open(f"scripts/wiki.opencc.txt", 'w') as output_file:
+    n = 0
+    with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
         for key, value in sorted_dict.items():
-            output_file.write(key+"\t"+value + '\n')
-    print(f'Write OpenCC: {len(dictionary)}')
+            if any(char.isspace() for char in key) or any(char.isspace() for char in value) :
+                output_file2.write(key+"\t"+value + '\n')
+            else :
+                output_file.write(key+"\t"+value + '\n')
+                n+=1
+    print(f'Write OpenCC: {n}/{len(dictionary)}')
 if __name__ == "__main__":
     main()
