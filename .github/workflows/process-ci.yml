@@ -196,7 +196,7 @@ jobs:
         done
 
         cd ../../
-        python scripts/merge_opencc.py text/AA scripts/wiki.opencc.txt  translate.txt
+        python scripts/merge_opencc.py ./ scripts/wiki.opencc.txt  translate.txt
         ls -l
         echo ls scripts
         ls scripts -l
