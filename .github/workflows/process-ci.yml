@@ -169,37 +169,43 @@ jobs:
         git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor ${{github.event.inputs.wikiextractor_param}} zhwiki.xml
 
-    - name:  Extracted doc to one-line-article txt
+    - name:  Extracted doc to one-line-article & OpenCC
       if: ${{ env.text_files_exist != 'true' }}
       run: |
         python scripts/one_line.py text/AA 100
         ls -l text/AA
 
-    - name:  Make OpenCC Data
-      if: ${{ steps.cache-opencc-files.outputs.cache-hit != 'true' }}
-      # if: ${{ env.text_files_exist != 'true' }}
-      run: |
-        cd text/AA
-        # 设置输出文件
-        output_file="../../wiki.translate.txt"
+#    - name:  Make OpenCC Data
+#      if: ${{ steps.cache-opencc-files.outputs.cache-hit != 'true' }}
+#      # if: ${{ env.text_files_exist != 'true' }}
+#      run: |
+#        cd text/AA
+#        # 设置输出文件
+#        output_file="../../wiki.translate.txt"
+#
+#        # 获取所有匹配的文件名
+#        files=(wiki_??.txt)
+#
+#        # 处理第一个文件
+#        first_file="${files[0]}"
+#        rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$first_file" > "$output_file"
+#
+#        # 处理其他文件
+#        for file in "${files[@]:1}"; do
+#          rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$file" >> "$output_file"
+#        done
+#
+#        cd ../../
+#        python scripts/merge_opencc.py ./ scripts/wiki.opencc.txt  translate.txt
+#        ls -l
+#        echo ls scripts
+#        ls scripts -l
 
-        # 获取所有匹配的文件名
-        files=(wiki_??.txt)
-
-        # 处理第一个文件
-        first_file="${files[0]}"
-        rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$first_file" > "$output_file"
-
-        # 处理其他文件
-        for file in "${files[@]:1}"; do
-          rg -o "\{[^{}\[\]=]+zh[^{}\[\]=]+\}" "$file" >> "$output_file"
-        done
-
-        cd ../../
-        python scripts/merge_opencc.py ./ scripts/wiki.opencc.txt  translate.txt
-        ls -l
-        echo ls scripts
-        ls scripts -l
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: opencc
+        path: scripts/wiki.opencc.txt
 
   filter:
     needs: prepare
@@ -381,7 +387,18 @@ jobs:
         
         echo merge csv
         python scripts/merge_csv.py  text/AA merge 0 filted.csv
-        echo opencc
+
+    - name: Upload Result
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_result_${{ env.VERSION}}_1
+        path: |
+         text/AA/*.chs.*
+         text/AA/*.merge.*
+         text/AA/*.csv
+
+    - name: OpenCC & Pass2
+      run: |
         opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c scripts/t2s.json
         echo merge and filte
         python scripts/merge_csv.py  text/AA filted.chs 5 merge.chs.csv
