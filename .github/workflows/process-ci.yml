@@ -371,7 +371,7 @@ jobs:
       run: |
         opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c scripts/t2s.json
         echo merge and filte
-        python scripts/merge_csv.py  text/AA filted.chs 5 merge.chs.csv
+        python scripts/merge_csv.py  text/AA filted.chs 3 merge.chs.csv
         ls $source_dir -l
 
     - name: Upload Result

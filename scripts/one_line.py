@@ -25,7 +25,7 @@ def split_article(text):
     dictionary = {}
     result = []
     keys = []
-    values = []
+    clips = []
     for line in matches:
         # 去除{H|  }
         string = line.strip()[1:-1].strip()
@@ -39,6 +39,7 @@ def split_article(text):
                 # 遍历各个区域
                 locales = string.split(';')
                 if len(locales) > 1:
+                    recorded = False
                     for locale in locales:
                         if len(locale) >= 2:
                             parts = locale.split(':', 1)
@@ -47,15 +48,18 @@ def split_article(text):
                                 value = value.strip()
                                 if key != value and len(key) >= 2 and len(key)<=30:
                                     dictionary[value] = key
-                                    values.append(key)
-                                    keys.append(value)
+                                    if recorded:
+                                        clips.append(line)
+                                        keys.append(value)
+                                        recorded = True
+
                         # else:
                         #     print(f"Warning: Skipping locale with length < 2: {locale}")
                 else:
                     print(f"Warning: Skipping string with < 2 locales: {string}")
             
     for i in range(len(keys)):
-        text = text.replace(keys[i],values[i])
+        text = text.replace(clips[i],keys[i])
     
     return dictionary, text
  
