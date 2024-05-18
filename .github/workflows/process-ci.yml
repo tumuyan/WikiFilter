@@ -158,24 +158,24 @@ jobs:
         mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
         ls -l
         
-    - name:  Wikiextractor (xml to txt)
+    - name:  Wikiextractor (XML dump to Extracted doc)
       # if: ${{ steps.cache-text-files.outputs.cache-hit != 'true' }}
       if: ${{ env.text_files_exist != 'true' }}
       run: |
         git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor ${{github.event.inputs.wikiextractor_param}} zhwiki.xml
 
-    - name:  Extracted doc to one-line-article & OpenCC
+    - name:  Extracted doc to one-line-article (.txt) & OpenCC (.opencc.txt)
       if:  env.text_files_exist != 'true'   ||  steps.cache-opencc-files.outputs.cache-hit != 'true'
       run: |
         python scripts/one_line.py text/AA 100
         ls -l text/AA
 
-    - name: Upload a Build Artifact
+    - name: Upload OpenCC Artifact
       uses: actions/upload-artifact@v4.3.3
       with:
         name: opencc
-        path: scripts/wiki.opencc.txt
+        path: scripts/*.opencc.txt
 
   filter:
     needs: prepare
@@ -183,7 +183,7 @@ jobs:
       VERSION: ${{ steps.date_version.outputs.VERSION }}
     runs-on: ubuntu-latest
     
-    # 根据上一个 job 构建的产物数量,动态生成并发任务
+    # 并发任务
     strategy:
       matrix:
         artifact: [0, 1, 2, 3, 4, 5]

@@ -17,7 +17,7 @@ def split_article(text):
            第一个字典为 其他语言-简中
            第二个列表是待保存的文本。如果匹配到的内容保存到了字典中，则该段内容替换后仅剩余简中；否则不执行任何动作
     """
-    pattern = r'\{[^{}\[\]=]+zh[^{}\[\]=]+\}'
+    pattern = r'\{[^\{\}\[\]\=]+zh[^\{\}\[\]\=]+\}'
     matches = re.findall(pattern, text)
     
     # 创建一个字典来存储 key 和其对应的值
@@ -27,7 +27,10 @@ def split_article(text):
     keys = []
     values = []
     for line in matches:
-        string = line.strip()[1:-1].replace("H|","")
+        # 去除{H|  }
+        string = line.strip()[1:-1].strip()
+        if len(text) >= 2 and text[1] == "|": 
+            line = line[2]
         # 捕获简中关键字
         match = re.search(PATTERN, string)
         if match:
@@ -42,7 +45,7 @@ def split_article(text):
                             if len(parts) == 2:
                                 lang, value = parts
                                 value = value.strip()
-                                if key != value:
+                                if key != value and len(key) >= 2 and len(key)<=30:
                                     dictionary[value] = key
                                     values.append(key)
                                     keys.append(value)
@@ -147,7 +150,7 @@ def main():
     n = 0
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
         for key, value in sorted_dict.items():
-            if any(char.isspace() for char in key) or any(char.isspace() for char in value) :
+            if any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value):
                 output_file2.write(key+"\t"+value + '\n')
             else :
                 output_file.write(key+"\t"+value + '\n')

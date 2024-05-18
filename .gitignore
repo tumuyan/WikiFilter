@@ -362,3 +362,4 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /enc_temp_folder
+scripts/wiki.opencc.txt
