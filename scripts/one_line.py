@@ -3,7 +3,7 @@ import os
 import re
 
 
-                      
+
 def split_article(text):
     """
     将长字符串分为符合正则表达式"{[^{}\[\]=]+zh[^{}\[\]=]+}"的多个片段,
@@ -97,6 +97,10 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
           output_sections += 1
           # 把缓存的内容中的换行改为空格，作为新的一行内容输出到指定文件。
           output_line = buffer.replace('\n', ' ')
+
+          # 统一符号
+          output_line = re.sub(r"[・･ᐧ]", "·", output_line)
+
           dic, text = split_article(output_line)
           dictionary.update(dic)
           with open(output_filename, 'a') as output_file:
@@ -111,25 +115,9 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
     return dictionary, total_sections, output_sections, 0.00
   return dictionary, total_sections, output_sections, round(output_sections / total_sections * 100, 2)
 
-# # 使用示例
-# filename = '/content/wiki2/text/AA/wiki_00'
-# output_filename = '/content/wiki2/text/AA/wiki_00_output.txt'
-# min_length = 100
-
-# total_sections, output_sections, percentage = wikiextractor_xml2txt(filename, output_filename, min_length)
-
-# print(f'Total sections: {total_sections}')
-# print(f'Output sections: {output_sections}')
-# print(f'Percentage: {percentage}%')
-
-
 # 遍历文件夹，对后缀不是txt和csv的文件运行wikiextractor_xml2txt()
 # 处理后打印总共处理了多少个部分，最终输出了多少个部分，比例是多少
 
-import os
-# 使用示例
-# folder_path = 'text/AA'
-# min_length = 100
 def main():
     if len(sys.argv) < 3:
         print("Usage: python script.py <folder-path> <mini-length>")
@@ -147,6 +135,13 @@ def main():
             dic, total_sections, output_sections, percentage = wikiextractor_xml2txt(file_path, output_filename, min_length)
             print(f'Input: {total_sections}, Output: {output_sections}, Percentage: {percentage}%, dict: {len(dic)} File: {filename}\n')
             dictionary.update(dic)
+
+    blacklist = []
+    with open(f"scripts/blacklist.opencc.txt", 'r') as f:
+        for line in f:
+            word = line.split('\t',2)[0].strip()
+            if len(word)>0:
+                blacklist.append(word)
             
     from collections import OrderedDict
     # 根据键排序字典
@@ -154,7 +149,9 @@ def main():
     n = 0
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
         for key, value in sorted_dict.items():
-            if any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value):
+            if  key in blacklist:
+                continue
+            elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value):
                 output_file2.write(key+"\t"+value + '\n')
             else :
                 output_file.write(key+"\t"+value + '\n')

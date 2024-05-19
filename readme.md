@@ -31,7 +31,11 @@
 5. wiki_result_chs_dict  高于阈值的纯简中词条
 
 ## 仓库结构
+- WikiFilter/WikiFilter.cpp 统计词频的C++源码
+- scripts/one_line.py 把WikiExtract结果处理为每篇内容为一行，同时输出其他语言-简中的opencc的配置文件
+- scripts/merge_csv.py 把多个csv文件合并为1个，同时输出无词频的txt文件（可根据阈值剔除词频低于一定值的词条）
+- scripts/blacklist.opencc.txt 输出opencc配置文件时，如词条在词文件中出现，则跳过
+- scripts/Translation.txt 预设的opencc数据文件，精选其他语言-简中
+- scripts/a2s.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt
+- scripts/a2s2.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt和wiki.opencc.txt
 
-
-
-，以定时从维基获取数据获取维基百科dump的数据
