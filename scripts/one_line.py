@@ -1,8 +1,14 @@
 import sys
 import os
 import re
+from collections import OrderedDict
 
-
+def remove_punctuation_length(text):
+    # 定义一个正则表达式模式，匹配所有中英文标点符号
+    punctuation_pattern = r'[\u3000-\u303F\uFF00-\uFFEF\u2000-\u206F\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E]'
+    # 使用正则表达式替换掉所有的标点符号
+    cleaned_text = re.sub(punctuation_pattern, '', text)
+    return len(cleaned_text) 
 
 def split_article(text):
     """
@@ -26,6 +32,7 @@ def split_article(text):
     result = []
     keys = []
     clips = []
+    difference = set()
     for line in matches:
         # 去除{H|  }
         string = line.strip()[1:-1].strip()
@@ -35,23 +42,27 @@ def split_article(text):
         match = re.search(PATTERN, string)
         if match:
             key = match.group(2).strip()
-            if len(key) >= 2 and len(key)<=30 and  any(ord(c) >= 128 for c in key):
+            if remove_punctuation_length(key) >= 2 and len(key)<=30 and  any(ord(c) >= 128 for c in key):
                 # 遍历各个区域
                 locales = string.split(';')
                 if len(locales) > 1:
-                    recorded = False
+                    record = True
                     for locale in locales:
                         if len(locale) >= 2:
                             parts = locale.split(':', 1)
                             if len(parts) == 2:
                                 lang, value = parts
                                 value = value.strip()
-                                if key != value and len(key) >= 2 and len(key)<=30:
-                                    dictionary[value] = key
-                                    if recorded:
+                                if key != value and len(value) >= 2 and len(value)<=30:
+                                    if value in dictionary:
+                                        if key!= dictionary[value]:
+                                            difference.add(value+"\t"+key)
+                                    else:
+                                        dictionary[value] = key
+                                    if record:
                                         clips.append(line)
                                         keys.append(value)
-                                        recorded = True
+                                        recorded = False
 
                         # else:
                         #     print(f"Warning: Skipping locale with length < 2: {locale}")
@@ -60,8 +71,8 @@ def split_article(text):
             
     for i in range(len(keys)):
         text = text.replace(clips[i],keys[i])
-    
-    return dictionary, text
+
+    return dictionary, text, difference
  
 
 
@@ -85,6 +96,7 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
 
   pattern = r'\s[\x09-~]+\s'
   dictionary = {}
+  difference = set()
   with open(filename, 'r') as f:
     buffer = ""
     for line in f:
@@ -101,8 +113,9 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
           # 统一符号
           output_line = re.sub(r"[・･ᐧ]", "·", output_line)
 
-          dic, text = split_article(output_line)
+          dic, text, dif = split_article(output_line)
           dictionary.update(dic)
+          difference.update(dif)
           with open(output_filename, 'a') as output_file:
             output_file.write(text + '\n')
           continue
@@ -112,8 +125,8 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
         buffer += re.sub(pattern, ' ', line)
 
   if total_sections == 0:
-    return dictionary, total_sections, output_sections, 0.00
-  return dictionary, total_sections, output_sections, round(output_sections / total_sections * 100, 2)
+    return dictionary, difference, total_sections, output_sections, 0.00
+  return dictionary, difference. total_sections, output_sections, round(output_sections / total_sections * 100, 2)
 
 # 遍历文件夹，对后缀不是txt和csv的文件运行wikiextractor_xml2txt()
 # 处理后打印总共处理了多少个部分，最终输出了多少个部分，比例是多少
@@ -125,16 +138,28 @@ def main():
         print("  mini-length: 忽略文本长度小于设定值的文本")
         return
 
+    # 定义一个正则表达式模式, 用于匹配拼音
+    pinyin_pattern = r'^[\u0061-\u007A\u00E0-\u00E6\u00E8-\u00ED\u00F2-\u00F6\u00F9-\u00FC\u0101\u0113\u012B\u014D\u016B\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC]+$'
+    
+ 
+
     folder_path = sys.argv[1]
     min_length = int(sys.argv[2])
     dictionary = {}
+    difference = set()
     for filename in os.listdir(folder_path):
         file_path = os.path.join(folder_path, filename)
         if os.path.isfile(file_path) and not "." in filename:
             output_filename = os.path.splitext(file_path)[0] + '.txt'
-            dic, total_sections, output_sections, percentage = wikiextractor_xml2txt(file_path, output_filename, min_length)
+            dic, dif, total_sections, output_sections, percentage = wikiextractor_xml2txt(file_path, output_filename, min_length)
             print(f'Input: {total_sections}, Output: {output_sections}, Percentage: {percentage}%, dict: {len(dic)} File: {filename}\n')
             dictionary.update(dic)
+            difference.update(dif)
+
+    difference_sort = sorted(list(difference))
+    with open(f"scripts/wiki3.opencc.txt", 'w') as output_file:
+        for line in difference_sort.items():
+            output_file2.write(line + '\n')
 
     blacklist = []
     with open(f"scripts/blacklist.opencc.txt", 'r') as f:
@@ -142,20 +167,27 @@ def main():
             word = line.split('\t',2)[0].strip()
             if len(word)>0:
                 blacklist.append(word)
+    whitelist = []
+    with open(f"scripts/Translation.txt", 'r') as f:
+        for line in f:
+            word = line.split('\t',2)[0].strip()
+            if len(word)>0:
+                whitelist.append(word)
             
-    from collections import OrderedDict
-    # 根据键排序字典
-    sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[0]))
+    # 根据值排序字典
+    sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[1]))
     n = 0
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
         for key, value in sorted_dict.items():
-            if  key in blacklist:
+            if  key in blacklist or key in whitelist:
                 continue
-            elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value):
+            elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value) or re.match(pinyin_pattern, key):
                 output_file2.write(key+"\t"+value + '\n')
             else :
                 output_file.write(key+"\t"+value + '\n')
                 n+=1
+
+
     print(f'Write OpenCC: {n}/{len(dictionary)}')
 if __name__ == "__main__":
     main()
