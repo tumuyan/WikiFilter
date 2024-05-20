@@ -126,7 +126,7 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
 
   if total_sections == 0:
     return dictionary, difference, total_sections, output_sections, 0.00
-  return dictionary, difference. total_sections, output_sections, round(output_sections / total_sections * 100, 2)
+  return dictionary, difference, total_sections, output_sections, round(output_sections / total_sections * 100, 2)
 
 # 遍历文件夹，对后缀不是txt和csv的文件运行wikiextractor_xml2txt()
 # 处理后打印总共处理了多少个部分，最终输出了多少个部分，比例是多少
