@@ -13,15 +13,11 @@ on:
       #   description: 'Dataset repo'
       #   required: false
       #   default: ''
-      dict:
-        description: '词库文件名的关键字（下载时保存的文件名）'
-        required: false
-        default: 'dict.txt'
       dict_source:
-        description: '选择需要处理的字典'
+        description: '选择需要处理的词库'
         required: true
         type: choice
-        default: release
+        default: wiki
         options:
           - wiki
           - release
@@ -30,8 +26,16 @@ on:
         description: '词库文件下载路径'
         required: false
         default: ''
+      dict:
+        description: '词库文件名（关键字）'
+        required: false
+        default: 'dict.txt'
       dict_tag:
-        description: '打包文件使用的标签'
+        description: '打包文件时的标签'
+        required: false
+        default: ''
+      source_tag:
+        description: '维基全文的版本'
         required: false
         default: ''
 
@@ -56,6 +60,7 @@ jobs:
         sudo apt-get -y install wget  p7zip-full ripgrep 
         python -m pip install --upgrade pip
         pip install pytest
+
     - name: Set Date Version
       id: date_version
       run: |
@@ -73,6 +78,12 @@ jobs:
         else
             VERSION="${current_year}${current_month}01"
         fi
+
+        if [ -n "${{ github.event.inputs.source_tag }}" ]; 
+            echo change version ${VERSION} -> ${{github.event.inputs.source_tag}}
+            VERSION="${{github.event.inputs.source_tag}}"
+        fi
+        
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
         echo "版本号为: $VERSION"
@@ -130,7 +141,8 @@ jobs:
       run: |
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
           echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
-          wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+          # wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+          curl -o  "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" "https://dumps.wikimedia.org/zhwiki/{dump_date}/zhwiki-{dump_date}-pages-articles.xml.bz2"
         else
           echo exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         fi
@@ -148,26 +160,32 @@ jobs:
         git clone https://github.com/tumuyan/wikiextractor
         python -m wikiextractor.wikiextractor.WikiExtractor -b 50G zhwiki.xml
         mkdir -p extracted
+        rm zhwiki.xml
         mv text/AA/wiki_00 ./extracted/zhwiki
 
     - name:  Extracted doc to one-line-article (.txt) & OpenCC (.opencc.txt)
       # 转为一篇文章为一行内容的txt以及opencc配置
       run: |
         python scripts/one_line.py extracted 100
+        echo "extracted:"
         ls -l extracted
-
-    - name:  Split Text
-      # 切分文件
-      run: |
-        rm text/AA/*
-        python scripts/split_file.py extracted/zhwiki.txt text/AA/ 16
-        ls -l text/AA/*
-
+        echo "scripts:"
+        ls -l scripts
+    
     - name: Upload OpenCC Artifact
       uses: actions/upload-artifact@v4.3.3
       with:
         name: opencc
-        path: scripts/*.opencc.txt
+        path: |
+          scripts/*.opencc.txt
+
+    - name:  Split Text
+      # 切分文件
+      run: |
+        rm -f text/AA/*
+        python scripts/split_file.py extracted/zhwiki.txt text/AA/ 16
+        ls -l text/AA/*
+
 
   filter:
     needs: prepare

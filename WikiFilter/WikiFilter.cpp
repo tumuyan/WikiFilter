@@ -103,7 +103,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 	raw_file.imbue(locale("en_US.UTF-8"));
 
 	if (!raw_file.is_open() || !txt_file.is_open()) {
-		cerr << "Error opening file! "  << endl;
+		cerr << "Error opening file: "  << raw_path << endl;
 		return -1;
 	}
 
@@ -113,7 +113,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     char* raw = new char[size+1];
 	raw[size] = '0';
 	if (!raw_file.read(raw, size)) {
-		cerr << "Error reading file! " << endl;
+		cerr << "Error reading file: " << raw_path << endl;
 		return -2;
 	}
 
