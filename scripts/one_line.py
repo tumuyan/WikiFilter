@@ -57,6 +57,7 @@ def split_article(text):
                                     if value in dictionary:
                                         if key!= dictionary[value]:
                                             difference.add(value+"\t"+key)
+                                            difference.add(value+"\t"+dictionary[value])
                                     else:
                                         dictionary[value] = key
                                     if record:
@@ -156,25 +157,39 @@ def main():
             dictionary.update(dic)
             difference.update(dif)
 
+    # 保存opencc配置中存在冲突的内容
     difference_sort = sorted(list(difference))
-    with open(f"scripts/wiki3.opencc.txt", 'w') as output_file:
-        for line in difference_sort.items():
-            output_file2.write(line + '\n')
+    with open(f"scripts/wiki3.opencc.txt", 'w') as f:
+        for line in difference_sort:
+            f.write(line + '\n')
 
-    blacklist = []
-    with open(f"scripts/blacklist.opencc.txt", 'r') as f:
-        for line in f:
-            word = line.split('\t',2)[0].strip()
-            if len(word)>0:
-                blacklist.append(word)
+    # 读取黑名单
+    blacklist = []    
+    file_path = f"scripts/blacklist.opencc.txt"
+    if not os.path.exists(file_path):
+        # 设置文本为红色
+        print("\033[91mError: File '{}' does not exist.\033[0m".format(file_path))
+    else:
+        with open(file_path, 'r') as f:
+            for line in f:
+                word = line.split('\t',2)[0].strip()
+                if len(word)>0:
+                    blacklist.append(word)
+    
+    # 读取白名单
     whitelist = []
-    with open(f"scripts/Translation.txt", 'r') as f:
-        for line in f:
-            word = line.split('\t',2)[0].strip()
-            if len(word)>0:
-                whitelist.append(word)
+    file_path = f"scripts/Translation.txt"
+    if not os.path.exists(file_path):
+        # 设置文本为红色
+        print("\033[91mError: File '{}' does not exist.\033[0m".format(file_path))
+    else:
+        with open(file_path, 'r') as f:
+            for line in f:
+                word = line.split('\t',2)[0].strip()
+                if len(word)>0:
+                    whitelist.append(word)
             
-    # 根据值排序字典
+    # 根据值排序字典，保存opencc配置文件
     sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[1]))
     n = 0
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
