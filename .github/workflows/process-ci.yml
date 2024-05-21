@@ -61,8 +61,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest
 
-    - name: Set Date Version
-      id: date_version
+    - name: Get Date Version 1
+      if:  github.event.inputs.source_tag == ''
       run: |
         # 获取当前日期
         current_date=$(date +%Y-%m-%d)
@@ -73,19 +73,24 @@ jobs:
         current_day=$(date +%d -d "$current_date")
         
         # 根据当前日期确定VERSION
-        if [ $current_day -gt 20 ]; then
+        if [ $current_day -gt 21 ]; then
             VERSION="${current_year}${current_month}20"
         else
             VERSION="${current_year}${current_month}01"
         fi
 
-        if [ -n "${{ github.event.inputs.source_tag }}" ]; then
-            echo change version ${VERSION} -> ${{github.event.inputs.source_tag}}
-            VERSION="${{github.event.inputs.source_tag}}"
-        fi
-        
-        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+    - name: Get Date Version 2
+      if:  github.event.inputs.source_tag != ''
+      run: |
+        VERSION="${{github.event.inputs.source_tag}}"
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+    - name: Set Date Version
+      id: date_version
+      run: |
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "版本号为: $VERSION"
     
     - name: Cache dump files
