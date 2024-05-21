@@ -192,6 +192,51 @@ jobs:
         ls -l text/AA/*
 
 
+    - name: Download dict (Dict url)
+      continue-on-error: true
+      if: github.event.inputs.dict_url != '' && env.EXISTS=='true' && github.event.inputs.dict_source=='url'
+      run: |
+        wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
+        ls
+
+    - name: Download dict (Github Release) 
+      continue-on-error: true
+      if: env.EXISTS=='true' && github.event.inputs.dict_source=='release'
+      run: |
+        if [ ! -f "${{github.event.inputs.dict}}" ]; then
+          # 设置GitHub仓库URL和需要包含的字符串
+          REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
+          
+          # 获取最新发布版本的信息
+          RELEASE_INFO=$(wget -qO- "$REPO_URL")
+          
+          # 从发布信息中提取词库文件下载链接
+          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{github.event.inputs.dict}}"'")) | .browser_download_url')
+          
+          # 下载文件到当前目录
+          wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
+          ls
+        fi
+    - name: Download dict (Wiki Dump)
+      continue-on-error: true
+      if: env.EXISTS=='true' && github.event.inputs.dict_source=='wiki'
+      run: |
+        FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
+        if [ ! -f "${{github.event.inputs.dict}}" ]; then
+          echo download ${FILENAME}.gz
+          wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
+          7z x ${FILENAME}.gz
+          mv ${FILENAME}  ${{github.event.inputs.dict}} 
+          ls
+        fi
+
+    - name: Upload Dict Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: dict
+        path: |
+          ${{github.event.inputs.dict}} 
+
   filter:
     needs: prepare
     outputs:
@@ -228,8 +273,8 @@ jobs:
 
     - name: Check Text File
       run: |
-        if [ -f text/AA/wiki_0${{ matrix.artifact }}.txt ]; then
-          echo "file not found, text/AA/wiki_0${{ matrix.artifact }}.txt"
+        if [ -f text/AA/wiki_${{ matrix.artifact }}.txt ]; then
+          echo "file not found, text/AA/wiki_${{ matrix.artifact }}.txt"
           echo "EXISTS=true" >> "$GITHUB_ENV"
         fi
 
@@ -240,52 +285,18 @@ jobs:
         python -m pip install --upgrade pip
         pip install pytest
 
+
     # - name: Download dataset
     #   if: ${{github.event.inputs.url}}
     #   run: |
     #     git clone ${{github.event.inputs.url}} --depth 1 text
 
+    - name: Download Dict artifacts
+      uses: actions/download-artifact@v4
+      with:
+        # path:  scripts/*.opencc.txt
+        name: dict
 
-    - name: Download dict (Dict url)
-      continue-on-error: true
-      if: github.event.inputs.dict_url != '' && env.EXISTS=='true' && github.event.inputs.dict_source=='url'
-      run: |
-        wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
-
-    - name: Download dict (Github Release) 
-      continue-on-error: true
-      if: env.EXISTS=='true' && github.event.inputs.dict_source=='release'
-      run: |
-        if [ ! -f "dict.txt" ]; then
-          # 设置GitHub仓库URL和需要包含的字符串
-          REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
-          
-          # 获取最新发布版本的信息
-          RELEASE_INFO=$(wget -qO- "$REPO_URL")
-          
-          # 从发布信息中提取词库文件下载链接
-          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{github.event.inputs.dict}}"'")) | .browser_download_url')
-          
-          # 下载文件到当前目录
-          wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
-          ls    
-        else
-          echo exist dict.txt
-        fi
-    - name: Download dict (Wiki Dump)
-      continue-on-error: true
-      if: env.EXISTS=='true' && github.event.inputs.dict_source=='wiki'
-      run: |
-        FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
-        if [ ! -f "dict.txt" ]; then
-          echo download ${FILENAME}.gz
-          wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
-          7z x ${FILENAME}.gz
-          mv ${FILENAME}  ${{github.event.inputs.dict}} 
-          ls
-        else
-          echo exist dict.txt
-        fi
     # - name: Download artifacts
     #   uses: actions/download-artifact@v4
     #   with:
@@ -316,7 +327,7 @@ jobs:
       uses: actions/upload-artifact@v4.3.3
       if: env.EXISTS=='true'
       with:
-        name: wiki_0${{ matrix.artifact }}.csv
+        name: wiki_${{ matrix.artifact }}.csv
         path: text/AA/wiki_*.csv
 
     - name: for Skip
