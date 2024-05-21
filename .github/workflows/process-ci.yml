@@ -203,32 +203,37 @@ jobs:
       continue-on-error: true
       if: env.EXISTS=='true' && github.event.inputs.dict_source=='release'
       run: |
-        if [ ! -f "${{github.event.inputs.dict}}" ]; then
-          # 设置GitHub仓库URL和需要包含的字符串
-          REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
-          
-          # 获取最新发布版本的信息
-          RELEASE_INFO=$(wget -qO- "$REPO_URL")
-          
-          # 从发布信息中提取词库文件下载链接
-          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{github.event.inputs.dict}}"'")) | .browser_download_url')
-          
-          # 下载文件到当前目录
-          wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
-          ls
-        fi
+        # 设置GitHub仓库URL和需要包含的字符串
+        REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
+        # 获取最新发布版本的信息
+        RELEASE_INFO=$(wget -qO- "$REPO_URL")
+        # 从发布信息中提取词库文件下载链接
+        DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{github.event.inputs.dict}}"'")) | .browser_download_url')
+        # 下载文件到当前目录
+        wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
+        ls
+
     - name: Download dict (Wiki Dump)
       continue-on-error: true
       if: env.EXISTS=='true' && github.event.inputs.dict_source=='wiki'
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
-        if [ ! -f "${{github.event.inputs.dict}}" ]; then
-          echo download ${FILENAME}.gz
-          wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
-          7z x ${FILENAME}.gz
-          mv ${FILENAME}  ${{github.event.inputs.dict}} 
-          ls
+        echo download ${FILENAME}.gz
+        wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
+        7z x ${FILENAME}.gz
+        mv ${FILENAME}  ${{github.event.inputs.dict}} 
+        ls
+
+    - name: Check Dict
+      continue-on-error: true
+      run: |
+        if [ -f "${{github.event.inputs.dict}}" ]; then
+          echo "check-dict=true" >> $GITHUB_OUTPUT
+        else
+          echo "check-dict=false" >> $GITHUB_OUTPUT
         fi
+        echo ls "${{github.event.inputs.dict}}"
+        ls "${{github.event.inputs.dict}}"
 
     - name: Upload Dict Artifact
       uses: actions/upload-artifact@v4.3.3
@@ -239,6 +244,7 @@ jobs:
 
   filter:
     needs: prepare
+    if: ${{ needs.prepare.outputs.check-dict == 'true' }}
     outputs:
       VERSION: ${{ steps.date_version.outputs.VERSION }}
     runs-on: ubuntu-latest
@@ -261,6 +267,19 @@ jobs:
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
         echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
+    - name: Download Dict artifacts
+      uses: actions/download-artifact@v4
+      with:
+        # path:  scripts/*.opencc.txt
+        name: dict
+
+    - name: Check Dict
+      run: |
+        if [ -f "${{github.event.inputs.dict}} " ]; then
+          echo "dict not found, ${{github.event.inputs.dict}} "
+          echo "EXISTS=true" >> "$GITHUB_ENV"
+        fi
+
     - name: Cache Text files
       id: cache-text-files
       uses: actions/cache@v4
@@ -270,6 +289,8 @@ jobs:
         path: |
           text/AA/*.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}
+
+
 
     - name: Check Text File
       run: |
@@ -291,11 +312,7 @@ jobs:
     #   run: |
     #     git clone ${{github.event.inputs.url}} --depth 1 text
 
-    - name: Download Dict artifacts
-      uses: actions/download-artifact@v4
-      with:
-        # path:  scripts/*.opencc.txt
-        name: dict
+
 
     # - name: Download artifacts
     #   uses: actions/download-artifact@v4
