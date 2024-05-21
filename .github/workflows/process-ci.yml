@@ -79,7 +79,7 @@ jobs:
             VERSION="${current_year}${current_month}01"
         fi
 
-        if [ -n "${{ github.event.inputs.source_tag }}" ]; 
+        if [ -n "${{ github.event.inputs.source_tag }}" ]; then
             echo change version ${VERSION} -> ${{github.event.inputs.source_tag}}
             VERSION="${{github.event.inputs.source_tag}}"
         fi
