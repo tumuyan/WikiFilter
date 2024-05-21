@@ -49,6 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       VERSION: ${{ steps.date_version.outputs.VERSION }}
+      CHECK-DICT: ${{ steps.check-dict.outputs.CHECK-DICT }}
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
@@ -225,6 +226,7 @@ jobs:
         ls
 
     - name: Check Dict
+      id: check-dict
       continue-on-error: true
       run: |
         if [ -f "${{github.event.inputs.dict}}" ]; then
