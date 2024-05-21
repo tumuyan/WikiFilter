@@ -174,9 +174,9 @@ jobs:
       run: |
         python scripts/one_line.py extracted 100
         echo "extracted:"
-        ls -l extracted
+        ls -lh extracted
         echo "scripts:"
-        ls -l scripts
+        ls -lh scripts
     
     - name: Upload OpenCC Artifact
       uses: actions/upload-artifact@v4.3.3
@@ -190,7 +190,7 @@ jobs:
       run: |
         rm -f text/AA/*
         python scripts/split_file.py extracted/zhwiki.txt text/AA/ 16
-        ls -l text/AA/*
+        ls -lh text/AA/*
 
 
     - name: Download dict (Dict url)
@@ -254,7 +254,7 @@ jobs:
     # 并发任务
     strategy:
       matrix:
-        artifact: [00, 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15]
+        artifact: ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"]
       fail-fast: false
         
     steps:
@@ -289,11 +289,14 @@ jobs:
       run: |
         if [ -f "text/AA/wiki_${{ matrix.artifact }}.txt" ]; then
           echo "EXISTS=true" >> "$GITHUB_ENV"
+          ls -lh "text/AA/wiki_${{ matrix.artifact }}.txt"
         else
           echo "file not found, text/AA/wiki_${{ matrix.artifact }}.txt"
         fi
 
-        if [ ! -f "${{github.event.inputs.dict}}" ]; then
+        if [ -f "${{github.event.inputs.dict}}" ]; then
+          ls -lh "${{github.event.inputs.dict}}"
+        else
           echo "dict not found, ${{github.event.inputs.dict}} "
           echo "EXISTS=false" >> "$GITHUB_ENV"
         fi
@@ -328,15 +331,15 @@ jobs:
         pwd
         ls
         g++ -o WikiFilter  WikiFilter.cpp
-        chmod +x WikiFilter; ls -l
+        chmod +x WikiFilter; ls -lh
 
     - name: Run WikiFilter
       if: env.EXISTS=='true'
       run: |
-        ls -l
+        ls -lh
         # mkdir -p --ignore-existing text/AA
         echo ls text/AA
-        ls -l text/AA/
+        ls -lh text/AA/
         ./WikiFilter/WikiFilter ${{github.event.inputs.dict}}  text/AA/wiki_${{ matrix.artifact }}.txt
 
     - name: Upload a Build Artifact
@@ -348,7 +351,7 @@ jobs:
 
     - name: for Skip
       if: env.EXISTS!='true'
-      run: ls -l ;echo ls text/AA; ls -l text/AA
+      run: ls -lh ;echo ls text/AA; ls -lh text/AA
 
   merge:
     needs: filter
