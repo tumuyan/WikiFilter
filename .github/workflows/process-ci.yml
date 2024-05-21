@@ -194,14 +194,14 @@ jobs:
 
     - name: Download dict (Dict url)
       continue-on-error: true
-      if: github.event.inputs.dict_url != '' && env.EXISTS=='true' && github.event.inputs.dict_source=='url'
+      if: github.event.inputs.dict_url != '' && github.event.inputs.dict_source=='url'
       run: |
         wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
         ls
 
     - name: Download dict (Github Release) 
       continue-on-error: true
-      if: env.EXISTS=='true' && github.event.inputs.dict_source=='release'
+      if: github.event.inputs.dict_source=='release'
       run: |
         # 设置GitHub仓库URL和需要包含的字符串
         REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
@@ -215,7 +215,7 @@ jobs:
 
     - name: Download dict (Wiki Dump)
       continue-on-error: true
-      if: env.EXISTS=='true' && github.event.inputs.dict_source=='wiki'
+      if: github.event.inputs.dict_source=='wiki'
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         echo download ${FILENAME}.gz
@@ -273,13 +273,6 @@ jobs:
         # path:  scripts/*.opencc.txt
         name: dict
 
-    - name: Check Dict
-      run: |
-        if [ -f "${{github.event.inputs.dict}} " ]; then
-          echo "dict not found, ${{github.event.inputs.dict}} "
-          echo "EXISTS=true" >> "$GITHUB_ENV"
-        fi
-
     - name: Cache Text files
       id: cache-text-files
       uses: actions/cache@v4
@@ -290,13 +283,17 @@ jobs:
           text/AA/*.txt
         key: ${{ env.cache-name }}-${{ env.VERSION}}
 
-
-
-    - name: Check Text File
+    - name: Check File
       run: |
-        if [ -f text/AA/wiki_${{ matrix.artifact }}.txt ]; then
-          echo "file not found, text/AA/wiki_${{ matrix.artifact }}.txt"
+        if [ -f "text/AA/wiki_${{ matrix.artifact }}.txt" ]; then
           echo "EXISTS=true" >> "$GITHUB_ENV"
+        else
+          echo "file not found, text/AA/wiki_${{ matrix.artifact }}.txt"
+        fi
+
+        if [ ! -f "${{github.event.inputs.dict}}" ]; then
+          echo "dict not found, ${{github.event.inputs.dict}} "
+          echo "EXISTS=false" >> "$GITHUB_ENV"
         fi
 
     - name: Install dependencies
