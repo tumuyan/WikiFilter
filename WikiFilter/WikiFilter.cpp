@@ -157,7 +157,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 
 
 	// 设置批的大小
-	 int batch_size = 500;
+	 int batch_size = 2000;
 	if (num_threads * batch_size > words.size())
 		batch_size =int( words.size() / num_threads) + 1;
 
