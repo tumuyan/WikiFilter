@@ -371,11 +371,11 @@ jobs:
       run: |
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-    - name: Download OpenCC artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path:  scripts/*.opencc.txt
-        name: opencc
+    # - name: Download OpenCC artifacts
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     path:  scripts/*.opencc.txt
+    #     name: opencc
 
     - name: Install dependencies
       run: |
@@ -394,7 +394,8 @@ jobs:
         source_dir="text/AA/"
         echo ls $source_dir
         ls $source_dir -l
-        mv $source_dir/*/* $source_dir
+        mv $source_dir/dict/* $source_dir
+        mv $source_dir/opencc/*.opencc.txt scripts
         
         echo merge csv
         python scripts/merge_csv.py  text/AA merge 0 filted.csv
