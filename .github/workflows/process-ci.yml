@@ -146,9 +146,9 @@ jobs:
       continue-on-error: true
       run: |
         if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
-          echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+          echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2 from https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
           # wget -q https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
-          curl -o  "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" "https://dumps.wikimedia.org/zhwiki/{dump_date}/zhwiki-{dump_date}-pages-articles.xml.bz2"
+          curl -o  "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         else
           echo exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         fi
@@ -157,7 +157,10 @@ jobs:
           7z x zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
         fi
         
-        mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
+        if  [ -f "zhwiki-${VERSION}-pages-articles-multistream.xml" ]; then
+          mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
+        fi
+
         ls -l
         
     - name:  Wikiextractor (XML dump to Extracted doc)
