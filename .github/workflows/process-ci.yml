@@ -250,7 +250,6 @@ jobs:
       continue-on-error: true
       run: |
         dict="${{ github.event.inputs.dict }}"
-        echo "dict_file=$dict" >> "$GITHUB_ENV"
         if [ -f "${dict}" ]; then
           echo "check-dict=true" >> $GITHUB_OUTPUT
           java -jar Clean.jar  -i "${dict}" -c scripts/dict-tick-preprocess.txt
@@ -260,6 +259,7 @@ jobs:
         fi
 
         filename="${dict%.*}"
+        echo "dict_filename=$filename" >> "$GITHUB_ENV"
         if [ -f "${filename}.dict.txt" ]; then
           echo "rename ${filename}.dict.txt & ${{github.event.inputs.dict}}"
           mv "${{github.event.inputs.dict}}" "${filename}.raw.txt"
@@ -283,7 +283,7 @@ jobs:
       with:
         name: dict-preprocess
         path: |
-          ${{env.dict_file}}* 
+          ${{env.dict_filename}}* 
 
   filter:
     needs: prepare
