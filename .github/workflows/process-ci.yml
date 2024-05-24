@@ -52,6 +52,11 @@ jobs:
       CHECK-DICT: ${{ steps.check-dict.outputs.CHECK-DICT }}
     steps:
     - uses: actions/checkout@v4
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4.2.1
+      with:
+        distribution: oracle
+        java-version: '20'
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
@@ -61,7 +66,6 @@ jobs:
         sudo apt-get -y install wget  p7zip-full ripgrep 
         python -m pip install --upgrade pip
         pip install pytest
-
     - name: Get Date Version 1
       if:  github.event.inputs.source_tag == ''
       run: |
@@ -228,24 +232,51 @@ jobs:
         mv ${FILENAME}  ${{github.event.inputs.dict}} 
         ls
 
-    - name: Check Dict
+
+    - name: Download Dict-Tick
+      uses: robinraju/release-downloader@v1.10
+      with:
+        repository: 'tumuyan/Dict-Trick'
+        latest: true
+        preRelease: false
+        fileName: 'Clean.jar'
+        tarBall: false
+        zipBall: false
+        out-file-path: ''
+        extract: false
+
+    - name: Check & Clean Dict
       id: check-dict
       continue-on-error: true
       run: |
-        if [ -f "${{github.event.inputs.dict}}" ]; then
+        dict="${{ github.event.inputs.dict }}"
+        if [ -f "${dict}" ]; then
           echo "check-dict=true" >> $GITHUB_OUTPUT
+          java -jar Clean.jar  -i "${dict}"
         else
           echo "check-dict=false" >> $GITHUB_OUTPUT
+          echo "::warning:: not exist ${{github.event.inputs.dict}}"
         fi
-        echo ls "${{github.event.inputs.dict}}"
-        ls "${{github.event.inputs.dict}}"
+
+        filename="${dict%.*}"
+        if [ -f "${filename}.dict.txt" ]; then
+          echo "rename ${filename}.dict.txt & ${{github.event.inputs.dict}}"
+          mv "${{github.event.inputs.dict}}" "${filename}.raw.txt"
+          mv "${filename}.dict.txt"  "${{github.event.inputs.dict}}"
+        else
+          echo "::warning:: not exist ${filename}.dict.txt"
+        fi
+
+        echo "ls ${filename}:"
+        ls ${filename}*
 
     - name: Upload Dict Artifact
       uses: actions/upload-artifact@v4.3.3
       with:
         name: dict
         path: |
-          ${{github.event.inputs.dict}} 
+          ${{github.event.inputs.dict}}
+          ${{github.event.inputs.dict}}* 
 
   filter:
     needs: prepare
