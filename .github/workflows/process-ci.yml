@@ -250,9 +250,10 @@ jobs:
       continue-on-error: true
       run: |
         dict="${{ github.event.inputs.dict }}"
+        echo "dict_file=$dict" >> "$GITHUB_ENV"
         if [ -f "${dict}" ]; then
           echo "check-dict=true" >> $GITHUB_OUTPUT
-          java -jar Clean.jar  -i "${dict}"
+          java -jar Clean.jar  -i "${dict}" -c scripts/dict-tick-preprocess.txt
         else
           echo "check-dict=false" >> $GITHUB_OUTPUT
           echo "::warning:: not exist ${{github.event.inputs.dict}}"
@@ -276,7 +277,13 @@ jobs:
         name: dict
         path: |
           ${{github.event.inputs.dict}}
-          ${{github.event.inputs.dict}}* 
+
+    - name: Upload Dict Pre-Process Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: dict-preprocess
+        path: |
+          ${{env.dict_file}}* 
 
   filter:
     needs: prepare
