@@ -28,7 +28,7 @@ on:
         default: ''
       dict:
         description: '词库文件名（关键字）'
-        required: false
+        required: true
         default: 'dict.txt'
       dict_tag:
         description: '打包文件时的标签'
@@ -39,6 +39,8 @@ on:
         required: false
         default: ''
 
+env:
+  DICT_NAME: ${{ github.event.inputs.dict || 'dict.txt' }}
 
 permissions:
   contents: read
@@ -223,7 +225,7 @@ jobs:
 
     - name: Download dict (Wiki Dump)
       continue-on-error: true
-      if: github.event.inputs.dict_source=='wiki'
+      if: github.event.inputs.dict_source=='wiki' || github.event.inputs.dict_source=='' 
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         echo download ${FILENAME}.gz
