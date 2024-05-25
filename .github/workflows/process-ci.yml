@@ -225,7 +225,7 @@ jobs:
 
     - name: Download dict (Wiki Dump)
       continue-on-error: true
-      if: github.event.inputs.dict_source=='wiki' || github.event.inputs.dict_source=='' 
+      if: github.event.inputs.dict_source=='wiki' || "github.event.inputs.dict_source"==""
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         echo download ${FILENAME}.gz
