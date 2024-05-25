@@ -433,12 +433,13 @@ jobs:
         ls
         source_dir="text/AA/"
         echo ls $source_dir
-        ls $source_dir -l
+        ls $source_dir -lh
         mv $source_dir/dict/* $source_dir
+        mv $source_dir/opencc/*.opencc.txt scripts
         mv $source_dir/opencc/*.opencc.txt scripts
         
         echo merge csv
-        python scripts/merge_csv.py  text/AA merge 0 filted.csv
+        python scripts/merge_csv.py text/AA/ merge 0 filted.csv
 
     - name: Upload Result
       uses: actions/upload-artifact@v4.3.3
@@ -454,7 +455,7 @@ jobs:
         opencc -i text/AA/merge.csv -o text/AA/merge.chs.csv -c scripts/a2s2.json
         echo merge and filte
         python scripts/merge_csv.py  text/AA filted.chs 3 merge.chs.csv
-        ls $source_dir -l
+        ls $source_dir -lh
 
     - name: Upload Result
       uses: actions/upload-artifact@v4.3.3

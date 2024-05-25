@@ -4,30 +4,27 @@ import csv
 # 遍历input_folder目录中的csv文件，加总每个csv的相同key的值，保存为新的csv文件
 
 def merge_csv(input_folder, output_filename,input_suffix,output_filter):
-    # 获取 input_folder 目录中的所有 txt 文件
-    csv_files = [f for f in os.listdir(input_folder) if f.endswith(input_suffix)]
-
     # 创建一个字典来存储 key 和其对应的值
     key_counts = {}
 
-    for csv_file in csv_files:
-        print(csv_file)
-        # 打开 csv 文件
-        # with open(f'{input_folder}/{csv_file}', 'r') as f:
-        #     reader = csv.reader(f)
-        with open(f'{input_folder}/{csv_file}', 'r') as f:
-            for line in f:
-                
-                if '\t' in line:
-                    # 获取 key 和值
-                    k, value = line.split('\t')
-                    v = int(value)
-                    if k not in key_counts:
-                        key_counts[k] = v
-                    else:
-                        key_counts[k] += v
-                elif len(line)>1:
-                    print("Error: in line content",line )
+    for root, dirs, files in os.walk(input_folder):
+        for csv_file in files:
+            if csv_file.endswith(input_suffix):
+                print(csv_file)
+                # 打开 csv 文件
+                with open(f'{input_folder}/{csv_file}', 'r') as f:
+                    for line in f:
+                        
+                        if '\t' in line:
+                            # 获取 key 和值
+                            k, value = line.split('\t')
+                            v = int(value)
+                            if k not in key_counts:
+                                key_counts[k] = v
+                            else:
+                                key_counts[k] += v
+                        elif len(line)>1:
+                            print("Error: in line content",line )
     print("Contains", len(key_counts), "keys")
     
     if len(key_counts) <1:
