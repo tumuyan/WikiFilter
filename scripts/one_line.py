@@ -157,14 +157,10 @@ def main():
             dictionary.update(dic)
             difference.update(dif)
 
-    # 保存opencc配置中存在冲突的内容
-    difference_sort = sorted(list(difference))
-    with open(f"scripts/wiki3.opencc.txt", 'w') as f:
-        for line in difference_sort:
-            f.write(line + '\n')
 
+    skiplist = []
     # 读取黑名单
-    blacklist = []    
+    # blacklist = []    
     file_path = f"scripts/blacklist.opencc.txt"
     if not os.path.exists(file_path):
         # 设置文本为红色
@@ -174,10 +170,11 @@ def main():
             for line in f:
                 word = line.split('\t',2)[0].strip()
                 if len(word)>0:
-                    blacklist.append(word)
+                    # blacklist.append(word)
+                    skiplist.append(word)
     
     # 读取白名单
-    whitelist = []
+    # whitelist = []
     file_path = f"scripts/Translation.txt"
     if not os.path.exists(file_path):
         # 设置文本为红色
@@ -187,14 +184,25 @@ def main():
             for line in f:
                 word = line.split('\t',2)[0].strip()
                 if len(word)>0:
-                    whitelist.append(word)
-            
+                    # whitelist.append(word)
+                    skiplist.append(word)
+
+
+    # 保存opencc配置中存在冲突的内容
+    difference_sort = sorted(list(difference))
+    with open(f"scripts/wiki3.opencc.txt", 'w') as f, open(f"scripts/wiki4.opencc.txt", 'w') as f2:
+        for line in difference_sort:
+            f2.write(line + '\n') 
+            word = line.split('\t',2)[0].strip()
+            if not word in skiplist:
+                f.write(line + '\n') 
+
     # 根据值排序字典，保存opencc配置文件
     sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[1]))
     n = 0
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
         for key, value in sorted_dict.items():
-            if  key in blacklist or key in whitelist:
+            if  key in skiplist:
                 continue
             elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value) or re.match(pinyin_pattern, key):
                 output_file2.write(key+"\t"+value + '\n')

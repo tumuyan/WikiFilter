@@ -34,8 +34,13 @@
 - WikiFilter/WikiFilter.cpp 统计词频的C++源码
 - scripts/one_line.py 把WikiExtract结果处理为每篇内容为一行，同时输出其他语言-简中的opencc的配置文件
 - scripts/merge_csv.py 把多个csv文件合并为1个，同时输出无词频的txt文件（可根据阈值剔除词频低于一定值的词条）
-- scripts/blacklist.opencc.txt 输出opencc配置文件时，如词条在词文件中出现，则跳过
+- scripts/blacklist.opencc.txt 输出opencc配置文件时，如词条在词文件中出现，则跳过。一方面需要排除不必要的转换、错误的转换，另一方面部分词条只需要逐字转换即可，没有必要走opencc的词条转换。
 - scripts/Translation.txt 预设的opencc数据文件，精选其他语言-简中
 - scripts/a2s.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt
 - scripts/a2s2.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt和wiki.opencc.txt
 
+## 运行过程生成的文件
+- wiki.opencc.txt 根据维基全文的标签信息，生成的其他字形-简中词条对应表，按简中词条排序。
+- wiki2.opencc.txt 被剔除的其他字形-简中词条对应表，按简中词条排序。主要剔除了有括号、有空格、纯ASCII字符词条、拼音词条。在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。这些词条基本不会进入输入法候选词，因此基本不会过杀，输出此文件仅供后续检查。
+- wiki3.opencc.txt 存在冲突的内容（同词条对应了多个简中结果）在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。需要人工解决这些冲突，添加到Translation.txt中。
+- wiki4.opencc.txt 存在冲突的内容（同词条对应了多个简中结果）在Translation.txt和blacklist.opencc.txt中出现的词条也会出现在这个文件中。用于后期对词条重新检查。
