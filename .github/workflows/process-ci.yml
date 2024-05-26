@@ -208,6 +208,7 @@ jobs:
       run: |
         wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
         ls
+        echo "dict_downloaded=true" >> "$GITHUB_ENV"
 
     - name: Download dict (Github Release) 
       continue-on-error: true
@@ -222,10 +223,11 @@ jobs:
         # 下载文件到当前目录
         wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
         ls
+        echo "dict_downloaded=true" >> "$GITHUB_ENV"
 
     - name: Download dict (Wiki Dump)
       continue-on-error: true
-      if: github.event.inputs.dict_source=='wiki' || "${{github.event.inputs.dict_source}}"==""
+      if: env.dict_downloaded!='true'
       run: |
         FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
         echo download ${FILENAME}.gz
@@ -427,6 +429,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: text/AA/
+        merge-multiple: true
 
     - name: Prepare Enviroment
       run: |
@@ -434,12 +437,16 @@ jobs:
         source_dir="text/AA/"
         echo ls $source_dir
         ls $source_dir -lh
-        mv $source_dir/dict/* $source_dir
-        mv $source_dir/opencc/*.opencc.txt scripts
-        mv $source_dir/opencc/*.opencc.txt scripts
+        mv $source_dir/*.opencc.txt scripts
+        rm $source_dir/*.raw.txt
+        echo after move files
+        ls $source_dir -lh
         
         echo merge csv
-        python scripts/merge_csv.py text/AA/ merge 0 filted.csv
+        python scripts/merge_csv.py $source_dir merge 0 filted.csv
+        rm $source_dir/*.txt.filted.csv
+        echo after merge files
+        ls $source_dir -lh
 
     - name: Upload Result
       uses: actions/upload-artifact@v4.3.3
