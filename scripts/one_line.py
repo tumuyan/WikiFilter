@@ -160,7 +160,6 @@ def main():
 
     skiplist = []
     # 读取黑名单
-    # blacklist = []    
     file_path = f"scripts/blacklist.opencc.txt"
     if not os.path.exists(file_path):
         # 设置文本为红色
@@ -170,7 +169,17 @@ def main():
             for line in f:
                 word = line.split('\t',2)[0].strip()
                 if len(word)>0:
-                    # blacklist.append(word)
+                    skiplist.append(word)
+
+    file_path = f"scripts/blacklist2.opencc.txt"
+    if not os.path.exists(file_path):
+        # 设置文本为红色
+        print("\033[91mError: File '{}' does not exist.\033[0m".format(file_path))
+    else:
+        with open(file_path, 'r') as f:
+            for line in f:
+                word = line.split('\t',2)[0].strip()
+                if len(word)>0:
                     skiplist.append(word)
     
     # 读取白名单
