@@ -192,7 +192,7 @@ jobs:
       with:
         name: opencc
         path: |
-          scripts/*.opencc.txt
+          scripts/wiki*.opencc.txt
 
     - name:  Split Text
       # 切分文件
@@ -233,8 +233,10 @@ jobs:
         echo download ${FILENAME}.gz
         wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
         7z x ${FILENAME}.gz
+        ls -lh
+        echo mv ${FILENAME}
         mv ${FILENAME}  ${{github.event.inputs.dict}} 
-        ls
+        ls -lh
 
 
     - name: Download Dict-Tick
