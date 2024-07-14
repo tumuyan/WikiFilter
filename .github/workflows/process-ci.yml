@@ -206,7 +206,7 @@ jobs:
       continue-on-error: true
       if: github.event.inputs.dict_url != '' && github.event.inputs.dict_source=='url'
       run: |
-        wget -O ${{github.event.inputs.dict}}  ${{github.event.inputs.dict_url}}
+        wget -O ${{env.DICT_NAME }}  ${{github.event.inputs.dict_url}}
         ls
         echo "dict_downloaded=true" >> "$GITHUB_ENV"
 
@@ -219,9 +219,9 @@ jobs:
         # 获取最新发布版本的信息
         RELEASE_INFO=$(wget -qO- "$REPO_URL")
         # 从发布信息中提取词库文件下载链接
-        DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{github.event.inputs.dict}}"'")) | .browser_download_url')
+        DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{env.DICT_NAME }}"'")) | .browser_download_url')
         # 下载文件到当前目录
-        wget  -O ${{github.event.inputs.dict}} "$DOWNLOAD_URL"
+        wget  -O ${{env.DICT_NAME }} "$DOWNLOAD_URL"
         ls
         echo "dict_downloaded=true" >> "$GITHUB_ENV"
 
@@ -233,9 +233,11 @@ jobs:
         echo download ${FILENAME}.gz
         wget  https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
         7z x ${FILENAME}.gz
+        pwd
+        echo file list:
         ls -lh
         echo mv ${FILENAME}
-        mv ${FILENAME}  ${{github.event.inputs.dict}} 
+        mv ${FILENAME}  ${{env.DICT_NAME }} 
         ls -lh
 
 
@@ -255,21 +257,21 @@ jobs:
       id: check-dict
       continue-on-error: true
       run: |
-        dict="${{ github.event.inputs.dict }}"
+        dict="${{ env.DICT_NAME }}"
         if [ -f "${dict}" ]; then
           echo "check-dict=true" >> $GITHUB_OUTPUT
           java -jar Clean.jar  -i "${dict}" -c scripts/dict-tick-preprocess.txt
         else
           echo "check-dict=false" >> $GITHUB_OUTPUT
-          echo "::warning:: not exist ${{github.event.inputs.dict}}"
+          echo "::warning:: not exist ${{env.DICT_NAME }}"
         fi
 
         filename="${dict%.*}"
         echo "dict_filename=$filename" >> "$GITHUB_ENV"
         if [ -f "${filename}.dict.txt" ]; then
-          echo "rename ${filename}.dict.txt & ${{github.event.inputs.dict}}"
-          mv "${{github.event.inputs.dict}}" "${filename}.raw.txt"
-          mv "${filename}.dict.txt"  "${{github.event.inputs.dict}}"
+          echo "rename ${filename}.dict.txt & ${{env.DICT_NAME }}"
+          mv "${{env.DICT_NAME }}" "${filename}.raw.txt"
+          mv "${filename}.dict.txt"  "${{env.DICT_NAME }}"
         else
           echo "::warning:: not exist ${filename}.dict.txt"
         fi
@@ -282,7 +284,7 @@ jobs:
       with:
         name: dict
         path: |
-          ${{github.event.inputs.dict}}
+          ${{env.DICT_NAME }}
 
     - name: Upload Dict Pre-Process Artifact
       uses: actions/upload-artifact@v4.3.3
@@ -341,10 +343,10 @@ jobs:
           echo "file not found, text/AA/wiki_${{ matrix.artifact }}.txt"
         fi
 
-        if [ -f "${{github.event.inputs.dict}}" ]; then
-          ls -lh "${{github.event.inputs.dict}}"
+        if [ -f "${{env.DICT_NAME }}" ]; then
+          ls -lh "${{env.DICT_NAME }}"
         else
-          echo "dict not found, ${{github.event.inputs.dict}} "
+          echo "dict not found, ${{env.DICT_NAME }} "
           echo "EXISTS=false" >> "$GITHUB_ENV"
         fi
 
@@ -387,7 +389,7 @@ jobs:
         # mkdir -p --ignore-existing text/AA
         echo ls text/AA
         ls -lh text/AA/
-        ./WikiFilter/WikiFilter ${{github.event.inputs.dict}}  text/AA/wiki_${{ matrix.artifact }}.txt
+        ./WikiFilter/WikiFilter ${{env.DICT_NAME }}  text/AA/wiki_${{ matrix.artifact }}.txt
 
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4.3.3
