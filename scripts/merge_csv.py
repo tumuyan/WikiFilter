@@ -12,7 +12,7 @@ def merge_csv(input_folder, output_filename,input_suffix,output_filter):
             if csv_file.endswith(input_suffix):
                 print(csv_file)
                 # 打开 csv 文件
-                with open(f'{input_folder}/{csv_file}', 'r') as f:
+                with open(f'{input_folder}/{csv_file}', 'r' , encoding='utf-8') as f:
                     for line in f:
                         
                         if '\t' in line:
@@ -32,7 +32,7 @@ def merge_csv(input_folder, output_filename,input_suffix,output_filter):
         
     keys = []
     # 创建一个新的 csv 文件来存储聚合后的结果
-    with open( input_folder + "/"+ output_filename + ".csv" , 'w', newline='') as f:
+    with open( input_folder + "/"+ output_filename + ".csv" , 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
 
         # 遍历字典并写入新的 csv 文件
@@ -42,7 +42,7 @@ def merge_csv(input_folder, output_filename,input_suffix,output_filter):
                 keys.append(key)
 
     sorted_keys  =  sorted(keys)
-    with open(input_folder + "/"+ output_filename + ".txt", 'w', newline='') as f:
+    with open(input_folder + "/"+ output_filename + ".txt", 'w', newline='', encoding='utf-8') as f:
         for key in sorted_keys :
             print(key, file=f)
             
