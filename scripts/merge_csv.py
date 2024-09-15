@@ -31,6 +31,9 @@ def merge_csv(input_folder, output_filename,input_suffix,output_filter):
         return
         
     keys = []
+    count_freq = {}
+    count_sum = 0
+    
     # 创建一个新的 csv 文件来存储聚合后的结果
     with open( input_folder + "/"+ output_filename + ".csv" , 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
@@ -41,10 +44,24 @@ def merge_csv(input_folder, output_filename,input_suffix,output_filter):
             if count > output_filter:
                 keys.append(key)
 
+            if count in count_freq:
+                count_freq[count] += 1
+            else:
+                count_freq[count] = 1
+
     sorted_keys  =  sorted(keys)
     with open(input_folder + "/"+ output_filename + ".txt", 'w', newline='', encoding='utf-8') as f:
         for key in sorted_keys :
             print(key, file=f)
+
+    
+    sorted_freq  =  sorted(count_freq.items())
+    with open(input_folder + "/"+ output_filename + ".freq.csv", 'w', newline='', encoding='utf-8') as f:
+        f.write("词频, 词条数, 累积比例\n")
+        for count, freq in sorted_freq:
+            # print(f'{count}\t{freq}\n')
+            count_sum = count_sum + freq
+            f.write(f'{count}, {freq}, {count_sum/len(key_counts)}\n')
             
     print("Output dict", len(keys), int(100*len(keys)/len(key_counts)),"%")
 
