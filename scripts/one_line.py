@@ -2,6 +2,8 @@ import sys
 import os
 import re
 from collections import OrderedDict
+import opencc
+
 
 def remove_punctuation_length(text):
     # 定义一个正则表达式模式，匹配所有中英文标点符号
@@ -140,7 +142,7 @@ def main():
         return
 
     # 定义一个正则表达式模式, 用于匹配拼音
-    pinyin_pattern = r'^[\u0061-\u007A\u00E0-\u00E6\u00E8-\u00ED\u00F2-\u00F6\u00F9-\u00FC\u0101\u0113\u012B\u014D\u016B\u01CE\u01D0\u01D2\u01D4\u01D6\u01D8\u01DA\u01DC]+$'
+    pinyin_pattern = r'^[、\u0061-\u007A\u00E0-\u00E6\u00E8-\u00ED\u00F2-\u00F6\u00F9-\u00FC\u0100-\u3000]+$'
     
  
 
@@ -200,6 +202,8 @@ def main():
     # 保存opencc配置中存在冲突的内容
     difference_sort = sorted(list(difference))
     with open(f"scripts/wiki3.opencc.txt", 'w') as f, open(f"scripts/wiki4.opencc.txt", 'w') as f2:
+        f2.write("# wiki4.opencc.txt 存在冲突的内容（同词条对应了多个简中结果）在Translation.txt和blacklist.opencc.txt中出现的词条也会出现在这个文件中。用于后期对词条重新检查。\n")
+        f.write("# wiki3.opencc.txt 存在冲突的内容（同词条对应了多个简中结果）在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。即使是剔除了有括号、有空格、纯ASCII字符词条、拼音词条，也会出现在这个文件中（用于充分的对照）。需要人工解决这些冲突，添加到Translation.txt或blacklist.opencc.txt中。\n")
         for line in difference_sort:
             f2.write(line + '\n') 
             word = line.split('\t',2)[0].strip()
@@ -209,15 +213,26 @@ def main():
     # 根据值排序字典，保存opencc配置文件
     sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[1]))
     n = 0
+
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
+        output_file2.write("# wiki2.opencc.txt 被剔除的其他字形-简中词条对应表，按简中词条排序。主要剔除了有括号、有空格、纯ASCII字符词条、拼音词条。在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。这些词条基本不会进入输入法候选词，因此基本不会过杀，输出此文件仅供后续检查。\n")
+        
+        # 创建 OpenCC 转换器实例
+        converter1 = opencc.OpenCC('t2s.json')  # 繁体转简体
+        converter2 = opencc.OpenCC('tw2s.json')  # 台湾正体转大陆简体
+        converter3 = opencc.OpenCC('hk2s.json')  # 香港字形转大陆简体
+        
         for key, value in sorted_dict.items():
             if  key in skiplist:
                 continue
-            elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value) or re.match(pinyin_pattern, key):
+            elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value) or re.match(pinyin_pattern, key) or re.match(pinyin_pattern, value):
                 output_file2.write(key+"\t"+value + '\n')
             else :
-                output_file.write(key+"\t"+value + '\n')
-                n+=1
+                # 不存储与默认转换字形结果相同的词条
+                # if converter1.convert(key) != value and  converter2.convert(key) != value and  converter3.convert(key) != value :
+                if converter1.convert(key) != value:
+                    output_file.write(key+"\t"+value + '\n')
+                    n+=1
 
 
     print(f'Write OpenCC: {n}/{len(dictionary)}')

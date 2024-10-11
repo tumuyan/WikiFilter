@@ -67,7 +67,7 @@ jobs:
       run: |
         sudo apt-get -y install wget  p7zip-full ripgrep 
         python -m pip install --upgrade pip
-        pip install pytest
+        pip install pytest OpenCC
     - name: Get Date Version 1
       if:  github.event.inputs.source_tag == ''
       run: |
