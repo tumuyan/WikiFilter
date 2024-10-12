@@ -227,6 +227,9 @@ def main():
                 continue
             elif '(' in value or '（' in value or any(char.isspace() for char in key) or any(char.isspace() for char in value) or all(ord(c) < 128 for c in key) or all(ord(c) < 128 for c in value) or re.match(pinyin_pattern, key) or re.match(pinyin_pattern, value):
                 output_file2.write(key+"\t"+value + '\n')
+            elif any(char.isdigit() for char in value) ^  any(char.isdigit() for char in key):
+                # 避免转换字形前后其一有数字，另一无数字
+                output_file2.write(key+"\t"+value + '\n')
             else :
                 # 不存储与默认转换字形结果相同的词条
                 # if converter1.convert(key) != value and  converter2.convert(key) != value and  converter3.convert(key) != value :
