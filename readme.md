@@ -28,7 +28,7 @@
 2. wiki_??.csv 使用维基全文分片文件验证的词频
 3. wiki_result_*_1 合并后的词频文件
 4. wiki_result__all 处理后的全部文件
-5. wiki_result_chs_dict  高于阈值的纯简中词条
+5. wiki_result_chs_dict  高于预设阈值的纯简中词条，**不建议直接使用。**由于目前生成的opencc并不理想，建议下载`wiki_result_*_1`从中获取未作简繁转换的`merge.csv`，通过`scripts/postprocess.bat`（其中的路径需要手动调整）对文件简繁转换、过滤词频以及其他处理。
 
 ## 仓库结构
 - WikiFilter/WikiFilter.cpp 统计词频的C++源码
@@ -36,7 +36,7 @@
 - scripts/merge_csv.py 把多个csv文件合并为1个，同时输出无词频的txt文件（可根据阈值剔除词频低于一定值的词条）
 - scripts/blacklist.opencc.txt 输出opencc配置文件时，如词条在词文件中出现，则跳过。一方面需要排除不必要的转换、错误的转换，另一方面部分词条只需要逐字转换即可，没有必要走opencc的词条转换。
 - scripts/blacklist2.opencc.txt 由于容易产生歧义而不建议转换的词条，或者暂时不知如何处置的词条
-- scripts/Translation.txt 预设的opencc数据文件，精选其他语言-简中
+- scripts/Translation.txt 预设的opencc数据文件，精选其他语言-简中。注意其中使用了一个opencc的特性，opencc的词条对照表使用tab分割内容，并且不处理空格后的内容。此文件包含了形如`國樂團{tab}民乐团{space}民族乐团`的词条，定义了`國樂團`转换为`民乐团`，而`民族乐团`作为注释，提示在这里定义了转换惯例，并且不影响正常转换的结果。
 - scripts/a2s.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt
 - scripts/a2s2.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt和wiki.opencc.txt
 

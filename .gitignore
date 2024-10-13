@@ -364,3 +364,7 @@ FodyWeavers.xsd
 /enc_temp_folder
 scripts/wiki*.opencc.txt
 *.ocd2
+scripts/merge.freq.csv
+scripts/dict.chs.suffix.txt
+scripts/filted.chs*
+scripts/merge.*
