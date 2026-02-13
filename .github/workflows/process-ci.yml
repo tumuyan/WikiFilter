@@ -120,35 +120,51 @@ jobs:
           extracted/zhwiki
         key: ${{ env.cache-name }}-${{ env.VERSION}}
 
-    - name: Check if Release exists
+    - name: Check latest wiki-data Release
       id: check-release
       continue-on-error: true
       run: |
-        if gh release view wiki-data-${VERSION} --json assets --jq '.assets[] | select(.name | contains("zhwiki"))' 2>/dev/null; then
+        # 查找最新的 wiki-data-* release
+        LATEST_RELEASE=$(gh release list --limit 50 --json tagName,isLatest --jq '
+          map(select(.tagName | startswith("wiki-data-"))) | 
+          sort_by(.tagName) | reverse | .[0].tagName
+        ' 2>/dev/null || echo "")
+        
+        if [ -n "$LATEST_RELEASE" ] && [ "$LATEST_RELEASE" != "null" ]; then
+          echo "latest-release-tag=$LATEST_RELEASE" >> "$GITHUB_ENV"
           echo "release-exists=true" >> "$GITHUB_ENV"
-          echo "Release wiki-data-${VERSION} exists"
+          echo "Found latest release: $LATEST_RELEASE"
         else
           echo "release-exists=false" >> "$GITHUB_ENV"
-          echo "Release wiki-data-${VERSION} not found"
+          echo "No wiki-data-* release found"
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Download xml-doc-files from Release
       id: download-release
-      if: steps.xml-doc-files.outputs.cache-hit != 'true'
+      if: steps.xml-doc-files.outputs.cache-hit != 'true' && env.release-exists == 'true'
       continue-on-error: true
       run: |
         mkdir -p extracted
-        gh release download wiki-data-${VERSION} \
-          --pattern 'zhwiki-*-extracted.tar.gz' \
-          --dir . || echo "No release found"
         
-        if [ -f zhwiki-${VERSION}-extracted.tar.gz ]; then
-          tar -xzf zhwiki-${VERSION}-extracted.tar.gz
+        # 从最新 release 下载
+        echo "Downloading from release: ${{ env.latest-release-tag }}"
+        gh release download "${{ env.latest-release-tag }}" \
+          --pattern 'zhwiki-*-extracted.tar.gz' \
+          --dir . || echo "Download failed"
+        
+        # 查找下载的文件（文件名可能包含不同版本号）
+        DOWNLOADED_FILE=$(ls zhwiki-*-extracted.tar.gz 2>/dev/null | head -1)
+        
+        if [ -n "$DOWNLOADED_FILE" ] && [ -f "$DOWNLOADED_FILE" ]; then
+          echo "Downloaded: $DOWNLOADED_FILE"
+          tar -xzf "$DOWNLOADED_FILE"
           mv zhwiki extracted/
           echo "downloaded-from-release=true" >> "$GITHUB_ENV"
           ls -lh extracted/
+        else
+          echo "No file downloaded"
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
