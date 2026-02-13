@@ -43,7 +43,7 @@ env:
   DICT_NAME: ${{ github.event.inputs.dict || 'dict.txt' }}
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   prepare:
@@ -120,6 +120,39 @@ jobs:
           extracted/zhwiki
         key: ${{ env.cache-name }}-${{ env.VERSION}}
 
+    - name: Check if Release exists
+      id: check-release
+      continue-on-error: true
+      run: |
+        if gh release view wiki-data-${VERSION} --json assets --jq '.assets[] | select(.name | contains("zhwiki"))' 2>/dev/null; then
+          echo "release-exists=true" >> "$GITHUB_ENV"
+          echo "Release wiki-data-${VERSION} exists"
+        else
+          echo "release-exists=false" >> "$GITHUB_ENV"
+          echo "Release wiki-data-${VERSION} not found"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Download xml-doc-files from Release
+      id: download-release
+      if: steps.xml-doc-files.outputs.cache-hit != 'true'
+      continue-on-error: true
+      run: |
+        mkdir -p extracted
+        gh release download wiki-data-${VERSION} \
+          --pattern 'zhwiki-*-extracted.tar.gz' \
+          --dir . || echo "No release found"
+        
+        if [ -f zhwiki-${VERSION}-extracted.tar.gz ]; then
+          tar -xzf zhwiki-${VERSION}-extracted.tar.gz
+          mv zhwiki extracted/
+          echo "downloaded-from-release=true" >> "$GITHUB_ENV"
+          ls -lh extracted/
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Cache Text files
       id: cache-text-files
       uses: actions/cache@v4
@@ -135,6 +168,7 @@ jobs:
       run: |
         if [ -f "extracted/zhwiki" ]; then
           echo "extracted=true" >> "$GITHUB_ENV"
+          echo "Pass: Found extracted file (cache or release)"
           echo "Pass: Cached extracted file"
         else
           echo "Fail: No cached text file"
@@ -186,6 +220,63 @@ jobs:
         ls -lh extracted
         echo "scripts:"
         ls -lh scripts
+
+    - name: Compress xml-doc-files for Release
+      id: compress-wiki
+      if: env.release-exists != 'true'
+      run: |
+        if [ -f "extracted/zhwiki" ]; then
+          tar -czf zhwiki-${VERSION}-extracted.tar.gz -C extracted zhwiki
+          FILE_SIZE=$(stat -c%s "zhwiki-${VERSION}-extracted.tar.gz")
+          FILE_SIZE_MB=$((FILE_SIZE / 1024 / 1024))
+          echo "File size: ${FILE_SIZE_MB} MB"
+          ls -lh zhwiki-${VERSION}-extracted.tar.gz
+          
+          # 检查文件大小是否 >= 100MB
+          if [ $FILE_SIZE_MB -ge 100 ]; then
+            echo "file-valid=true" >> "$GITHUB_ENV"
+            echo "File size OK (>= 100MB), will upload to release"
+          else
+            echo "file-valid=false" >> "$GITHUB_ENV"
+            echo "::warning::File too small (${FILE_SIZE_MB}MB < 100MB), cache may be incomplete, skipping upload"
+            rm -f zhwiki-${VERSION}-extracted.tar.gz
+          fi
+        fi
+
+    - name: Clean up old wiki-data releases
+      if: env.release-exists != 'true' && env.file-valid == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        KEEP_COUNT: 3
+      run: |
+        # 获取所有 wiki-data-* releases，按创建时间排序（最新的在前）
+        OLD_RELEASES=$(gh release list --limit 100 --json tagName,createdAt --jq '
+          sort_by(.createdAt) | reverse | 
+          map(select(.tagName | startswith("wiki-data-"))) | 
+          .[$KEEP_COUNT:] | .[].tagName
+        ' --argjson KEEP_COUNT $KEEP_COUNT)
+        
+        # 删除超出保留数量的旧 releases
+        for release in $OLD_RELEASES; do
+          if [ -n "$release" ]; then
+            echo "Deleting old release: $release"
+            gh release delete "$release" --yes || echo "Failed to delete $release"
+          fi
+        done
+
+    - name: Upload xml-doc-files to Release
+      uses: softprops/action-gh-release@v2
+      if: env.release-exists != 'true' && env.file-valid == 'true'
+      with:
+        tag_name: wiki-data-${{ env.VERSION }}
+        name: Wiki Data ${{ env.VERSION }}
+        body: |
+          ## Wiki 提取数据备份
+          - 版本: ${{ env.VERSION }}
+          - 用途: 恢复 CI 缓存，避免重复下载
+        files: zhwiki-${{ env.VERSION }}-extracted.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Upload OpenCC Artifact
       uses: actions/upload-artifact@v4.3.3
