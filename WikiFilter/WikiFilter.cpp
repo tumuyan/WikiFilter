@@ -99,9 +99,37 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 	const string output_path = raw_path + ".filted.csv";
 	ofstream output_file(output_path,ios_base::out);
 	output_file.close();
-	// 设置文件编码为 UTF-8
-	txt_file.imbue(locale("en_US.UTF-8"));
-	raw_file.imbue(locale("en_US.UTF-8"));
+	// 尝试设置 UTF-8 locale（按优先级尝试多个，覆盖 CJK 区域）
+	const char* utf8_locales[] = {
+		// 英文 UTF-8（最通用）
+		"en_US.UTF-8", "en_US.utf8", "en_GB.UTF-8", "en_GB.utf8",
+		// 系统 UTF-8
+		"C.UTF-8", "C.utf8", "POSIX.UTF-8",
+		// 中文（大陆、台湾、香港、新加坡）
+		"zh_CN.UTF-8", "zh_CN.utf8", "zh_TW.UTF-8", "zh_TW.utf8",
+		"zh_HK.UTF-8", "zh_HK.utf8", "zh_SG.UTF-8", "zh_SG.utf8",
+		// 日文
+		"ja_JP.UTF-8", "ja_JP.utf8",
+		// 韩文
+		"ko_KR.UTF-8", "ko_KR.utf8",
+		nullptr
+	};
+	bool locale_set = false;
+	for (int i = 0; utf8_locales[i] != nullptr; ++i) {
+		try {
+			locale utf8_loc(utf8_locales[i]);
+			txt_file.imbue(utf8_loc);
+			raw_file.imbue(utf8_loc);
+			locale_set = true;
+			break;
+		} catch (const std::runtime_error& e) {
+			continue;
+		}
+	}
+	if (!locale_set) {
+		// 回退到经典 locale，仍可正确处理 UTF-8 字节流
+		cerr << "Warning: No UTF-8 locale available, using classic locale" << endl;
+	}
 
 	if (!raw_file.is_open() || !txt_file.is_open()) {
 		cerr << "Error opening file: "  << raw_path << endl;
