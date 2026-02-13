@@ -22,6 +22,7 @@
 #include <unordered_set>
 #include <queue>
 #include <memory>
+#include <iomanip>
 
 using namespace std;
 
@@ -179,6 +180,11 @@ void process_batch_with_ac(
     }
 
     // 3. 扫描所有行
+    auto scan_start = chrono::high_resolution_clock::now();
+    auto last_log_time = scan_start;
+    const int LOG_INTERVAL_SECONDS = 60;  // 每 60 秒输出一次进度日志
+    const size_t LOG_CHECK_INTERVAL = 5000;  // 每 5000 行检查一次时间
+
     for (size_t line_idx = 0; line_idx < line_size; line_idx++) {
         const char* line_text = line_ptr[line_idx];
         size_t line_len = strlen(line_text);
@@ -191,6 +197,29 @@ void process_batch_with_ac(
         // 计数（每行最多计1次）
         for (int idx : matches) {
             line_counts[idx]++;
+        }
+
+        // 定期检查是否需要输出日志
+        if ((line_idx + 1) % LOG_CHECK_INTERVAL == 0) {
+            auto current_time = chrono::high_resolution_clock::now();
+            chrono::duration<double> elapsed_since_last_log = current_time - last_log_time;
+
+            if (elapsed_since_last_log.count() >= LOG_INTERVAL_SECONDS) {
+                chrono::duration<double> total_elapsed = current_time - batch_start;
+                double progress = (line_idx + 1) * 100.0 / line_size;
+                double lines_per_sec = (line_idx + 1) / total_elapsed.count();
+
+                {
+                    lock_guard<mutex> lock(cout_mutex);
+                    cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
+                         << fixed << setprecision(1) << progress << "%"
+                         << " (" << (line_idx + 1) << "/" << line_size << " lines)"
+                         << ", " << setprecision(0) << lines_per_sec << " lines/s"
+                         << ", elapsed: " << setprecision(1) << total_elapsed.count() << "s"
+                         << endl;
+                }
+                last_log_time = current_time;
+            }
         }
     }
 
