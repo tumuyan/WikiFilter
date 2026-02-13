@@ -3,8 +3,10 @@
 // 在C / C++中，数组下标的类型是std::size_t，因此数组的大小首先不能超过size_t所能表示的大小。
 // 这个数据类型是在库文件stdio.h中通过typedef声明的，对于32位程序它被定义为unsighed int，对于64位程序定义为unsigned long。
 // 前者能表示的最大大小为2 ^ 32 - 1，后者为2 ^ 64 - 1。
-
 // 也就是说，32位程序最大处理4G文件
+
+// 优化版本：使用 Aho-Corasick 自动机进行多模式匹配
+// 支持分批处理大规模词典，内存可控
 
 #include <regex>
 #include <vector>
@@ -16,233 +18,439 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
+#include <unordered_map>
+#include <unordered_set>
+#include <queue>
+#include <memory>
 
 using namespace std;
 
+// ============================================================================
+// Aho-Corasick 自动机实现
+// ============================================================================
+
+struct ACNode {
+    unordered_map<char, ACNode*> children;
+    ACNode* fail = nullptr;
+    vector<int> output;  // 存储匹配词条的索引
+
+    ~ACNode() {
+        for (auto& pair : children) {
+            delete pair.second;
+        }
+    }
+};
+
+class AhoCorasick {
+private:
+    ACNode* root;
+    int patternCount;
+
+public:
+    AhoCorasick() : root(new ACNode()), patternCount(0) {}
+
+    ~AhoCorasick() {
+        delete root;
+    }
+
+    // 添加词条
+    void insert(const string& pattern, int index) {
+        ACNode* current = root;
+        for (char c : pattern) {
+            if (current->children.find(c) == current->children.end()) {
+                current->children[c] = new ACNode();
+            }
+            current = current->children[c];
+        }
+        current->output.push_back(index);
+        patternCount++;
+    }
+
+    // 构建失败指针（BFS）
+    void buildFailureLinks() {
+        queue<ACNode*> q;
+
+        // 根节点的子节点失败指针指向根
+        for (auto& pair : root->children) {
+            pair.second->fail = root;
+            q.push(pair.second);
+        }
+
+        // BFS 构建失败指针
+        while (!q.empty()) {
+            ACNode* current = q.front();
+            q.pop();
+
+            for (auto& pair : current->children) {
+                char c = pair.first;
+                ACNode* child = pair.second;
+                ACNode* fail = current->fail;
+
+                // 查找失败指针
+                while (fail != nullptr && fail->children.find(c) == fail->children.end()) {
+                    fail = fail->fail;
+                }
+
+                if (fail == nullptr) {
+                    child->fail = root;
+                } else {
+                    child->fail = fail->children[c];
+                    // 合并输出
+                    if (!child->fail->output.empty()) {
+                        child->output.insert(child->output.end(),
+                            child->fail->output.begin(), child->fail->output.end());
+                    }
+                }
+                q.push(child);
+            }
+        }
+    }
+
+    // 搜索文本，返回所有匹配的词条索引（去重）
+    unordered_set<int> search(const char* text, size_t length) {
+        unordered_set<int> matches;
+        ACNode* current = root;
+
+        for (size_t i = 0; i < length; i++) {
+            char c = text[i];
+
+            // 沿着失败指针查找
+            while (current != root && current->children.find(c) == current->children.end()) {
+                current = current->fail;
+            }
+
+            if (current->children.find(c) != current->children.end()) {
+                current = current->children[c];
+            } else {
+                current = root;
+            }
+
+            // 收集匹配
+            if (!current->output.empty()) {
+                matches.insert(current->output.begin(), current->output.end());
+            }
+        }
+
+        return matches;
+    }
+
+    int getPatternCount() const { return patternCount; }
+};
+
+// ============================================================================
+// 全局变量
+// ============================================================================
+
 mutex file_mutex;
-atomic_int a = 0; // 第几次分配任务
+mutex cout_mutex;
 
- int process_words(vector<string> words, int i,int BATCH_SIZE, char** line_ptr, int LINE_SIZE, string output_path) {
+// 批次处理的词条范围
+struct BatchRange {
+    size_t start;
+    size_t end;
+};
 
-	int r = 0;
-	auto start = chrono::high_resolution_clock::now();
-	auto begin = chrono::high_resolution_clock::now();
+// ============================================================================
+// 使用 AC 自动机处理一个批次的词条
+// ============================================================================
 
-	stringstream ss;
+void process_batch_with_ac(
+    const vector<string>& words,
+    const BatchRange& range,
+    char** line_ptr,
+    size_t line_size,
+    const string& output_path,
+    int batch_id,
+    int total_batches)
+{
+    auto batch_start = chrono::high_resolution_clock::now();
 
+    // 1. 构建 AC 自动机
+    AhoCorasick ac;
+    for (size_t i = range.start; i < range.end; i++) {
+        ac.insert(words[i], i - range.start);
+    }
+    ac.buildFailureLinks();
 
-	int j = BATCH_SIZE * i;
-	int batch_start = j + 1;
-	int batch_progress = 0;
-	int n = 0;
+    // 2. 为本批次词条创建计数器
+    vector<atomic<int>> line_counts(range.end - range.start);
+    for (auto& count : line_counts) {
+        count = 0;
+    }
 
-	for (; j < words.size();j++) {
-		string word = words[j];
-		const size_t w_size = word.size();
-		char* w = const_cast<char*>(word.data());
+    // 3. 扫描所有行
+    for (size_t line_idx = 0; line_idx < line_size; line_idx++) {
+        const char* line_text = line_ptr[line_idx];
+        size_t line_len = strlen(line_text);
 
-	int k = 0;
-	for (int loop = 0; loop < LINE_SIZE; loop++) {
-			if (strstr(line_ptr[loop], w) != NULL)
-				k++;
-		}
+        if (line_len == 0) continue;
 
-		//for (int loop = 0; loop < LINE_SIZE - 1; loop++) {
-		//	char* pos = line_ptr[loop+1];
-		//	if (memmem(line_ptr[loop], pos- line_ptr[loop], w, w_size) != NULL)
-		//		k++;
-		//}
+        // 获取本行匹配的所有词条
+        unordered_set<int> matches = ac.search(line_text, line_len);
 
-		if (k > 0)
-		{
-			r++;
-			ss << word << "\t" << k << "\n";
-		}
-		batch_progress++;
-		n++;
+        // 计数（每行最多计1次）
+        for (int idx : matches) {
+            line_counts[idx]++;
+        }
+    }
 
-		if (batch_progress == BATCH_SIZE || j == words.size() - 1) {
-			auto end = chrono::high_resolution_clock::now();
-			chrono::duration<double> duration = end - start;
-			chrono::duration<double> duration2 = end - begin;
-			cout << "Thread[" << i << "] " << n << "\t" << batch_start << "-" << j + 1
-				<< ",\t" << duration.count() << " s,\tTotal: " << duration2.count()
-				<< "\t" << n / duration2.count() << " it/s" << endl;
-			start = chrono::high_resolution_clock::now();
+    // 4. 输出结果
+    stringstream ss;
+    int match_count = 0;
+    for (size_t i = range.start; i < range.end; i++) {
+        int count = line_counts[i - range.start].load();
+        if (count > 0) {
+            ss << words[i] << "\t" << count << "\n";
+            match_count++;
+        }
+    }
 
-			file_mutex.lock();
-			ofstream file(output_path, ios::app); // 以追加模式打开文件
-			if (file.is_open()) {
-				file << ss.str();
-				file.close();
-			}
+    // 5. 写入文件
+    {
+        lock_guard<mutex> lock(file_mutex);
+        ofstream file(output_path, ios::app);
+        if (file.is_open()) {
+            file << ss.str();
+            file.close();
+        }
+    }
 
-			j = BATCH_SIZE * a - 1;
-			a++;
+    auto batch_end = chrono::high_resolution_clock::now();
+    chrono::duration<double> duration = batch_end - batch_start;
 
-			file_mutex.unlock();
-
-			ss.clear();
-			ss.str("");
-			batch_progress = 0;
-			batch_start = j + 1;
-		}
-
-	}
-	return r;
+    {
+        lock_guard<mutex> lock(cout_mutex);
+        cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
+             << "words: " << (range.end - range.start)
+             << ", matched: " << match_count
+             << ", time: " << duration.count() << "s" << endl;
+    }
 }
+
+// ============================================================================
+// 处理文件（主处理逻辑）
+// ============================================================================
 
 static int process_files(const string& raw_path, const string& txt_path, int num_threads) {
-	ifstream raw_file(raw_path, ios::binary | ios::ate);
-	ifstream txt_file(txt_path);
-	const string output_path = raw_path + ".filted.csv";
-	ofstream output_file(output_path,ios_base::out);
-	output_file.close();
-	// 尝试设置 UTF-8 locale（按优先级尝试多个，覆盖 CJK 区域）
-	const char* utf8_locales[] = {
-		// 英文 UTF-8（最通用）
-		"en_US.UTF-8", "en_US.utf8", "en_GB.UTF-8", "en_GB.utf8",
-		// 系统 UTF-8
-		"C.UTF-8", "C.utf8", "POSIX.UTF-8",
-		// 中文（大陆、台湾、香港、新加坡）
-		"zh_CN.UTF-8", "zh_CN.utf8", "zh_TW.UTF-8", "zh_TW.utf8",
-		"zh_HK.UTF-8", "zh_HK.utf8", "zh_SG.UTF-8", "zh_SG.utf8",
-		// 日文
-		"ja_JP.UTF-8", "ja_JP.utf8",
-		// 韩文
-		"ko_KR.UTF-8", "ko_KR.utf8",
-		nullptr
-	};
-	bool locale_set = false;
-	for (int i = 0; utf8_locales[i] != nullptr; ++i) {
-		try {
-			locale utf8_loc(utf8_locales[i]);
-			txt_file.imbue(utf8_loc);
-			raw_file.imbue(utf8_loc);
-			locale_set = true;
-			break;
-		} catch (const std::runtime_error& e) {
-			continue;
-		}
-	}
-	if (!locale_set) {
-		// 回退到经典 locale，仍可正确处理 UTF-8 字节流
-		cerr << "Warning: No UTF-8 locale available, using classic locale" << endl;
-	}
+    auto total_start = chrono::high_resolution_clock::now();
 
-	if (!raw_file.is_open() || !txt_file.is_open()) {
-		cerr << "Error opening file: "  << raw_path << endl;
-		return -1;
-	}
+    // 1. 打开文件
+    ifstream raw_file(raw_path, ios::binary | ios::ate);
+    ifstream txt_file(txt_path);
+    const string output_path = raw_path + ".filted.csv";
 
-	streamsize size = raw_file.tellg();
-	raw_file.seekg(0, ios::beg);
+    // 清空输出文件
+    {
+        ofstream output_file(output_path, ios_base::out);
+        output_file.close();
+    }
 
-    char* raw = new char[size+1];
-	raw[size] = '\0';
-	if (!raw_file.read(raw, size)) {
-		cerr << "Error reading file: " << raw_path << endl;
-		delete[] raw;
-		return -2;
-	}
+    // 设置 UTF-8 locale
+    const char* utf8_locales[] = {
+        "en_US.UTF-8", "en_US.utf8", "en_GB.UTF-8", "en_GB.utf8",
+        "C.UTF-8", "C.utf8", "POSIX.UTF-8",
+        "zh_CN.UTF-8", "zh_CN.utf8", "zh_TW.UTF-8", "zh_TW.utf8",
+        "zh_HK.UTF-8", "zh_HK.utf8", "zh_SG.UTF-8", "zh_SG.utf8",
+        "ja_JP.UTF-8", "ja_JP.utf8",
+        "ko_KR.UTF-8", "ko_KR.utf8",
+        nullptr
+    };
+    bool locale_set = false;
+    for (int i = 0; utf8_locales[i] != nullptr; ++i) {
+        try {
+            locale utf8_loc(utf8_locales[i]);
+            txt_file.imbue(utf8_loc);
+            raw_file.imbue(utf8_loc);
+            locale_set = true;
+            break;
+        } catch (const std::runtime_error& e) {
+            continue;
+        }
+    }
+    if (!locale_set) {
+        cerr << "Warning: No UTF-8 locale available, using classic locale" << endl;
+    }
 
-	// 数据集分行
-	vector<unsigned long> line;
-	line.push_back(0);
-	for (unsigned long i = 0; i < size; i++) {
-		if (raw[i] == '\n') {
-			line.push_back(i);
-			raw[i] = '\0';
-		}
-	}
-	if (raw[size] != '\0')
-		line.push_back(size + 1);
+    if (!raw_file.is_open() || !txt_file.is_open()) {
+        cerr << "Error opening file: " << raw_path << endl;
+        return -1;
+    }
 
-	// 定义一个整数偏移量列表
-	size_t LINE_SIZE = line.size();
-	// 分配内存,创建一个指针数组
-	char** line_ptr = new char*[LINE_SIZE];
+    // 2. 读取文本文件到内存
+    streamsize size = raw_file.tellg();
+    raw_file.seekg(0, ios::beg);
 
-	// 将整数偏移量转换为指针
-	line_ptr[0] = raw;
-	for (int i = 1; i < LINE_SIZE; i++) {
-		line_ptr[i] = raw + line[i]+1;
-	}
-	LINE_SIZE--;
+    cout << "Loading text file: " << raw_path << " (" << size << " bytes)" << endl;
 
-	cout << "text file lines = " << LINE_SIZE << ", " << raw_path << endl;
+    char* raw = new char[size + 1];
+    raw[size] = '\0';
+    if (!raw_file.read(raw, size)) {
+        cerr << "Error reading file: " << raw_path << endl;
+        delete[] raw;
+        return -2;
+    }
+    raw_file.close();
 
-	// 读取词库文件
-	string word;
-	regex pattern("\\s+");
-	vector<string> words;
-	while (getline(txt_file, word)) {
-		word = regex_replace(word, pattern, "");
-		if(word.length()>1)// 跳过单字
-			words.push_back(word); 
-	}
+    // 3. 分行处理
+    vector<unsigned long> line;
+    line.push_back(0);
+    for (unsigned long i = 0; i < size; i++) {
+        if (raw[i] == '\n') {
+            line.push_back(i);
+            raw[i] = '\0';
+        }
+    }
+    if (raw[size - 1] != '\n') {
+        line.push_back(size + 1);
+    }
 
-	cout << "dict file lines = " << words.size() << ", " << txt_path << endl;
+    size_t line_size = line.size() - 1;
 
+    // 创建行指针数组
+    char** line_ptr = new char*[line_size];
+    line_ptr[0] = raw;
+    for (size_t i = 1; i < line_size; i++) {
+        line_ptr[i] = raw + line[i] + 1;
+    }
 
-	// 设置批的大小
-	 int batch_size = 2000;
-	if (num_threads * batch_size > words.size())
-		batch_size =int( words.size() / num_threads) + 1;
+    cout << "Text file lines: " << line_size << endl;
 
+    // 4. 读取词典
+    string word;
+    regex pattern("\\s+");
+    vector<string> words;
+    while (getline(txt_file, word)) {
+        word = regex_replace(word, pattern, "");
+        if (word.length() > 1) {
+            words.push_back(word);
+        }
+    }
+    txt_file.close();
 
-	thread* th = new thread[num_threads];
+    cout << "Dictionary size: " << words.size() << " words" << endl;
 
-	a = num_threads;
-	for (int i = 0; i < num_threads; i++) {
-		th[i] = thread(process_words, words, i, batch_size, line_ptr, LINE_SIZE, output_path);
-	}
-	for (int i = 0; i < num_threads; i++) {
-		th[i].join();
-	}
+    // 5. 动态分批处理策略
+    // 根据词条数量和线程数动态计算批次大小
+    size_t total_words = words.size();
 
-	delete[] th;
-	delete[] raw;
-	delete[] line_ptr;
-	raw_file.close();
-	txt_file.close();
-	return 0;
+    // 内存估算参数
+    // - 每个 Trie 节点约 60 字节
+    // - 每个词条平均 4 字符，约 4 个节点
+    // - 目标：每批 AC 自动机内存控制在 ~128MB
+    const size_t TARGET_MEMORY_MB = 128;
+    const size_t EST_BYTES_PER_WORD = 240;  // 约 4 节点 * 60 字节
+    const size_t MAX_WORDS_PER_BATCH = (TARGET_MEMORY_MB * 1024 * 1024) / EST_BYTES_PER_WORD;
+
+    // 计算批次数量
+    // 策略：批次数至少是线程数的 3 倍（更好的负载均衡）
+    // 同时控制每批内存不超过限制
+    size_t min_batches_for_load_balance = (size_t)num_threads * 3;
+    size_t max_batches_by_memory = (total_words + 1000 - 1) / 1000;  // 至少 1000 词/批
+    size_t batches_by_memory_limit = (total_words + MAX_WORDS_PER_BATCH - 1) / MAX_WORDS_PER_BATCH;
+
+    size_t num_batches = max(min_batches_for_load_balance,
+                             min(batches_by_memory_limit, max_batches_by_memory));
+    num_batches = max(num_batches, (size_t)1);  // 至少 1 批
+
+    // 根据批次数计算每批词条数
+    size_t words_per_batch = (total_words + num_batches - 1) / num_batches;
+
+    // 估算每批内存
+    size_t estimated_mem_per_batch_mb = (words_per_batch * EST_BYTES_PER_WORD) / (1024 * 1024);
+
+    cout << "Dictionary size: " << total_words << " words" << endl;
+    cout << "Batch strategy: " << num_batches << " batches, "
+         << words_per_batch << " words/batch (max)" << endl;
+    cout << "Estimated memory per batch: ~" << estimated_mem_per_batch_mb << " MB" << endl;
+    cout << "Using " << num_threads << " threads" << endl;
+
+    // 6. 多线程并行处理批次
+    vector<BatchRange> batches;
+    for (size_t i = 0; i < num_batches; i++) {
+        BatchRange range;
+        range.start = i * words_per_batch;
+        range.end = min((i + 1) * words_per_batch, total_words);
+        if (range.start >= total_words) break;
+        batches.push_back(range);
+    }
+    num_batches = batches.size();  // 更新实际批次数
+
+    // 使用线程池处理批次
+    atomic<size_t> next_batch(0);
+
+    auto worker = [&]() {
+        while (true) {
+            size_t batch_idx = next_batch.fetch_add(1);
+            if (batch_idx >= num_batches) break;
+
+            process_batch_with_ac(
+                words,
+                batches[batch_idx],
+                line_ptr,
+                line_size,
+                output_path,
+                batch_idx,
+                num_batches
+            );
+        }
+    };
+
+    vector<thread> threads;
+    for (int i = 0; i < num_threads; i++) {
+        threads.emplace_back(worker);
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    // 7. 清理
+    delete[] raw;
+    delete[] line_ptr;
+
+    auto total_end = chrono::high_resolution_clock::now();
+    chrono::duration<double> total_duration = total_end - total_start;
+
+    cout << "========================================" << endl;
+    cout << "Completed in " << total_duration.count() << " seconds" << endl;
+    cout << "Output: " << output_path << endl;
+
+    return 0;
 }
 
-
+// ============================================================================
+// 主函数
+// ============================================================================
 
 int main(int argc, char* argv[]) {
-	// 检查命令行参数的数量
-	if (argc < 3) {
-		cout << "用法: " << argv[0] << " <dict file path> <text file path> [thread number]" << endl;
-		return 1;
-	}
+    if (argc < 3) {
+        cout << "用法: " << argv[0] << " <dict file path> <text file path> [thread number]" << endl;
+        cout << endl;
+        cout << "优化版本：使用 Aho-Corasick 自动机进行多模式匹配" << endl;
+        cout << "支持大规模词典（百万级）和大型文本文件（GB级）" << endl;
+        return 1;
+    }
 
-	// 获取参数
-	string param1 = argv[1];
-	int r = 0;
+    string dict_path = argv[1];
+    string text_path = argv[2];
+    int num_threads = 1;
 
-	// 设置线程数
-	int num_threads = 1;
-	if (argc > 3) {
-		num_threads = atoi(argv[3]);
-	}
-	else {
-		// 获取硬件支持的并发线程数
-		num_threads = thread::hardware_concurrency();
-		if (num_threads >= 16) {
-			// 虚拟环境检测到的核心数量可能不等于被分配的数量
-			cerr << "threads " << num_threads << " -> 2" << endl;
-			num_threads = 2; 
-		}
-	}
-	if (num_threads == 0) {
-		cerr << "threads 0 -> 1" << endl;
-		num_threads = 1; // 默认使用一个线程
-	} else
-		cout << "threads = " << num_threads << endl;
+    if (argc > 3) {
+        num_threads = atoi(argv[3]);
+    } else {
+        num_threads = thread::hardware_concurrency();
+        if (num_threads >= 16) {
+            cerr << "threads " << num_threads << " -> 2" << endl;
+            num_threads = 2;
+        }
+    }
 
-	return process_files(argv[2], param1, num_threads);
+    if (num_threads <= 0) {
+        cerr << "threads 0 -> 1" << endl;
+        num_threads = 1;
+    } else {
+        cout << "threads = " << num_threads << endl;
+    }
 
-
+    return process_files(text_path, dict_path, num_threads);
 }
