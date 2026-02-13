@@ -120,23 +120,41 @@ jobs:
           extracted/zhwiki
         key: ${{ env.cache-name }}-${{ env.VERSION}}
 
-    - name: Check latest wiki-data Release
+    - name: Check if VERSION file exists in recent releases
       id: check-release
       continue-on-error: true
       run: |
-        # 查找最新的 wiki-data-* release
-        LATEST_RELEASE=$(gh release list --limit 50 --json tagName,isLatest --jq '
-          map(select(.tagName | startswith("wiki-data-"))) | 
-          sort_by(.tagName) | reverse | .[0].tagName
+        TARGET_FILE="zhwiki-${VERSION}-extracted.tar.gz"
+        echo "Looking for file: $TARGET_FILE"
+        
+        # 获取最新的 5 个 releases（不按标签名过滤）
+        RELEASE_TAGS=$(gh release list --limit 50 --json tagName --jq '
+          .[:5] | .[].tagName
         ' 2>/dev/null || echo "")
         
-        if [ -n "$LATEST_RELEASE" ] && [ "$LATEST_RELEASE" != "null" ]; then
-          echo "latest-release-tag=$LATEST_RELEASE" >> "$GITHUB_ENV"
+        FOUND_RELEASE=""
+        
+        # 遍历每个 release，检查是否包含目标文件
+        for tag in $RELEASE_TAGS; do
+          if [ -n "$tag" ]; then
+            echo "Checking release: $tag"
+            ASSETS=$(gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
+            
+            if echo "$ASSETS" | grep -q "$TARGET_FILE"; then
+              FOUND_RELEASE="$tag"
+              echo "Found $TARGET_FILE in release: $tag"
+              break
+            fi
+          fi
+        done
+        
+        if [ -n "$FOUND_RELEASE" ]; then
+          echo "release-tag=$FOUND_RELEASE" >> "$GITHUB_ENV"
           echo "release-exists=true" >> "$GITHUB_ENV"
-          echo "Found latest release: $LATEST_RELEASE"
+          echo "Will download from: $FOUND_RELEASE"
         else
           echo "release-exists=false" >> "$GITHUB_ENV"
-          echo "No wiki-data-* release found"
+          echo "File $TARGET_FILE not found in recent releases"
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -147,24 +165,21 @@ jobs:
       continue-on-error: true
       run: |
         mkdir -p extracted
+        TARGET_FILE="zhwiki-${VERSION}-extracted.tar.gz"
         
-        # 从最新 release 下载
-        echo "Downloading from release: ${{ env.latest-release-tag }}"
-        gh release download "${{ env.latest-release-tag }}" \
-          --pattern 'zhwiki-*-extracted.tar.gz' \
+        echo "Downloading $TARGET_FILE from release: ${{ env.release-tag }}"
+        gh release download "${{ env.release-tag }}" \
+          --pattern "$TARGET_FILE" \
           --dir . || echo "Download failed"
         
-        # 查找下载的文件（文件名可能包含不同版本号）
-        DOWNLOADED_FILE=$(ls zhwiki-*-extracted.tar.gz 2>/dev/null | head -1)
-        
-        if [ -n "$DOWNLOADED_FILE" ] && [ -f "$DOWNLOADED_FILE" ]; then
-          echo "Downloaded: $DOWNLOADED_FILE"
-          tar -xzf "$DOWNLOADED_FILE"
+        if [ -f "$TARGET_FILE" ]; then
+          echo "Downloaded: $TARGET_FILE"
+          tar -xzf "$TARGET_FILE"
           mv zhwiki extracted/
           echo "downloaded-from-release=true" >> "$GITHUB_ENV"
           ls -lh extracted/
         else
-          echo "No file downloaded"
+          echo "File not downloaded"
         fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -259,33 +274,30 @@ jobs:
           fi
         fi
 
-    - name: Clean up old wiki-data releases
+    - name: Get latest release for upload
+      id: get-latest-release
       if: env.release-exists != 'true' && env.file-valid == 'true'
+      run: |
+        # 获取最新的 release（不限名称）
+        LATEST_RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+        
+        if [ -n "$LATEST_RELEASE" ] && [ "$LATEST_RELEASE" != "null" ]; then
+          echo "upload-release-tag=$LATEST_RELEASE" >> "$GITHUB_ENV"
+          echo "Will upload to latest release: $LATEST_RELEASE"
+        else
+          # 没有现有 release，创建一个新的
+          echo "upload-release-tag=wiki-cache-v1" >> "$GITHUB_ENV"
+          echo "No existing release, will create: wiki-cache-v1"
+        fi
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        KEEP_COUNT: 3
-      run: |
-        # 获取所有 wiki-data-* releases，按创建时间排序（最新的在前）
-        OLD_RELEASES=$(gh release list --limit 100 --json tagName,createdAt --jq '
-          sort_by(.createdAt) | reverse | 
-          map(select(.tagName | startswith("wiki-data-"))) | 
-          .[$KEEP_COUNT:] | .[].tagName
-        ' --argjson KEEP_COUNT $KEEP_COUNT)
-        
-        # 删除超出保留数量的旧 releases
-        for release in $OLD_RELEASES; do
-          if [ -n "$release" ]; then
-            echo "Deleting old release: $release"
-            gh release delete "$release" --yes || echo "Failed to delete $release"
-          fi
-        done
 
     - name: Upload xml-doc-files to Release
       uses: softprops/action-gh-release@v2
       if: env.release-exists != 'true' && env.file-valid == 'true'
       with:
-        tag_name: wiki-data-${{ env.VERSION }}
-        name: Wiki Data ${{ env.VERSION }}
+        tag_name: ${{ env.upload-release-tag }}
+        name: Wiki Cache
         body: |
           ## Wiki 提取数据备份
           - 版本: ${{ env.VERSION }}
@@ -293,6 +305,53 @@ jobs:
         files: zhwiki-${{ env.VERSION }}-extracted.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Clean up old wiki files from releases
+      if: env.release-exists != 'true' && env.file-valid == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        KEEP_COUNT: 3
+      run: |
+        # 获取最新的 5 个 releases（不按标签名过滤）
+        RELEASE_TAGS=$(gh release list --limit 20 --json tagName --jq '.[:5] | .[].tagName' 2>/dev/null || echo "")
+        
+        # 收集所有 zhwiki-*-extracted.tar.gz 文件及其所在 release
+        declare -A FILE_VERSIONS
+        declare -A FILE_RELEASES
+        
+        for tag in $RELEASE_TAGS; do
+          if [ -n "$tag" ]; then
+            echo "Checking release: $tag"
+            ASSETS=$(gh release view "$tag" --json assets --jq '.assets[] | select(.name | test("^zhwiki-[0-9]+-extracted\\.tar\\.gz$")) | .name' 2>/dev/null || echo "")
+            
+            for file in $ASSETS; do
+              if [ -n "$file" ]; then
+                # 提取版本号
+                VERSION_NUM=$(echo "$file" | grep -oE '[0-9]{8}')
+                if [ -n "$VERSION_NUM" ]; then
+                  FILE_VERSIONS["$VERSION_NUM"]="$file"
+                  FILE_RELEASES["$VERSION_NUM"]="$tag"
+                  echo "Found: $file (version: $VERSION_NUM) in release: $tag"
+                fi
+              fi
+            done
+          fi
+        done
+        
+        # 按版本号排序，保留最新的 KEEP_COUNT 个
+        KEEP_VERSIONS=$(printf '%s\n' "${!FILE_VERSIONS[@]}" | sort -r | head -n $KEEP_COUNT)
+        
+        echo "Versions to keep: $KEEP_VERSIONS"
+        
+        # 删除不在保留列表中的文件
+        for version in "${!FILE_VERSIONS[@]}"; do
+          if ! echo "$KEEP_VERSIONS" | grep -q "$version"; then
+            FILE="${FILE_VERSIONS[$version]}"
+            TAG="${FILE_RELEASES[$version]}"
+            echo "Deleting old file: $FILE from release: $TAG"
+            gh release delete-asset "$TAG" "$FILE" --yes || echo "Failed to delete $FILE"
+          fi
+        done
     
     - name: Upload OpenCC Artifact
       uses: actions/upload-artifact@v4.3.3
