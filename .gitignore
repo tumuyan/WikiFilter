@@ -368,3 +368,6 @@ scripts/merge.freq.csv
 scripts/dict.chs.suffix.txt
 scripts/filted.chs*
 scripts/merge.*
+*.xml
+*.xml.bz2
+WikiFilter/WikiFilter
