@@ -20,7 +20,7 @@
 using namespace std;
 
 mutex file_mutex;
-atomic_int a = 0;; // 第几次分配任务
+atomic_int a = 0; // 第几次分配任务
 
  int process_words(vector<string> words, int i,int BATCH_SIZE, char** line_ptr, int LINE_SIZE, string output_path) {
 
@@ -41,9 +41,8 @@ atomic_int a = 0;; // 第几次分配任务
 		const size_t w_size = word.size();
 		char* w = const_cast<char*>(word.data());
 
-		int k = 0;
-		int loop = 0;
-		for (int loop = 0; loop < LINE_SIZE; loop++) {
+	int k = 0;
+	for (int loop = 0; loop < LINE_SIZE; loop++) {
 			if (strstr(line_ptr[loop], w) != NULL)
 				k++;
 		}
@@ -140,9 +139,10 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 	raw_file.seekg(0, ios::beg);
 
     char* raw = new char[size+1];
-	raw[size] = '0';
+	raw[size] = '\0';
 	if (!raw_file.read(raw, size)) {
 		cerr << "Error reading file: " << raw_path << endl;
+		delete[] raw;
 		return -2;
 	}
 
@@ -161,7 +161,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 	// 定义一个整数偏移量列表
 	size_t LINE_SIZE = line.size();
 	// 分配内存,创建一个指针数组
-	char** line_ptr = (char**)malloc(LINE_SIZE * sizeof(char*));
+	char** line_ptr = new char*[LINE_SIZE];
 
 	// 将整数偏移量转换为指针
 	line_ptr[0] = raw;
@@ -201,8 +201,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 		th[i].join();
 	}
 
+	delete[] th;
 	delete[] raw;
-	free(line_ptr);
+	delete[] line_ptr;
 	raw_file.close();
 	txt_file.close();
 	return 0;
