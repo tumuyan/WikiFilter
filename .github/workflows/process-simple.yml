@@ -451,7 +451,7 @@ jobs:
           fi
           
           echo "处理: $INPUT_FILE"
-          ./WikiFilter/WikiFilter "${{ env.DICT_NAME }}" "$INPUT_FILE"
+          ./WikiFilter/WikiFilter "${{ env.DICT_NAME }}" "$INPUT_FILE" 1
         done
         
         echo "=== 过滤完成 ==="

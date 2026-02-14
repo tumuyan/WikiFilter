@@ -98,7 +98,7 @@ for i in $(seq -f "%02g" 0 $((SPLIT_COUNT - 1))); do
     fi
     
     echo "处理: $INPUT_FILE"
-    ./WikiFilter/WikiFilter "$DICT_NAME" "$INPUT_FILE"
+    ./WikiFilter/WikiFilter "$DICT_NAME" "$INPUT_FILE" 1
     
     # 移动输出文件
     if [ -f "${INPUT_FILE}.filted.csv" ]; then

@@ -23,16 +23,8 @@ fi
 # 下载 Dict-Trick
 if [ ! -f "Clean.jar" ]; then
     echo "下载 Dict-Trick..."
-    # 使用 GitHub API 获取最新 release
-    REPO_URL="https://api.github.com/repos/tumuyan/Dict-Trick/releases/latest"
-    RELEASE_INFO=$(curl -s "$REPO_URL")
-    DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name == "Clean.jar") | .browser_download_url')
-    
-    if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
-        echo "错误: 无法下载 Clean.jar"
-        exit 1
-    fi
-    
+    # 直接使用 GitHub releases 的 latest download 链接
+    DOWNLOAD_URL="https://github.com/tumuyan/Dict-Trick/releases/latest/download/Clean.jar"
     wget -O Clean.jar "$DOWNLOAD_URL"
 fi
 

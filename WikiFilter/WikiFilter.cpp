@@ -28,20 +28,68 @@
 using namespace std;
 
 // ============================================================================
+// 从文件读取数值（用于 cgroup 内存信息）
+// ============================================================================
+static size_t read_cgroup_value(const char* path) {
+    FILE* file = fopen(path, "r");
+    if (!file) return 0;
+    size_t value = 0;
+    if (fscanf(file, "%zu", &value) != 1) {
+        fclose(file);
+        return 0;
+    }
+    fclose(file);
+    return value;
+}
+
+// ============================================================================
 // 获取系统可用内存（单位：MB）
+// 兼容 Docker/cgroup 环境
 // ============================================================================
 static size_t get_available_memory_mb() {
+    // 1. 获取物理机内存信息
     struct sysinfo info;
-    if (sysinfo(&info) != 0) {
-        cerr << "Warning: Failed to get system memory info, using default" << endl;
-        return 1024;  // 默认 1GB
+    size_t host_available_mb = 1024;  // 默认 1GB
+    if (sysinfo(&info) == 0) {
+        size_t free_mb = (info.freeram * info.mem_unit) / (1024 * 1024);
+        size_t buffer_mb = (info.bufferram * info.mem_unit) / (1024 * 1024);
+        host_available_mb = free_mb + buffer_mb;
     }
-    // freeram 是以 mem_unit 为单位的，但通常 mem_unit = 1
-    size_t free_mb = (info.freeram * info.mem_unit) / (1024 * 1024);
-    // 也考虑 bufferram（可回收的缓冲区内存）
-    size_t buffer_mb = (info.bufferram * info.mem_unit) / (1024 * 1024);
-    size_t available_mb = free_mb + buffer_mb;
-    return available_mb;
+
+    // 2. 尝试读取 cgroup v2 内存限制
+    size_t cgroup_limit = read_cgroup_value("/sys/fs/cgroup/memory.max");
+    
+    // 3. 尝试读取 cgroup v1 内存限制
+    if (cgroup_limit == 0) {
+        cgroup_limit = read_cgroup_value("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+    }
+
+    // 4. 如果没有 cgroup 限制，或者限制过大（接近物理机内存），使用物理机可用内存
+    size_t host_total_mb = (info.totalram * info.mem_unit) / (1024 * 1024);
+    
+    if (cgroup_limit == 0 || cgroup_limit > info.totalram * info.mem_unit) {
+        // 没有 cgroup 限制或限制等于/大于物理机内存
+        return host_available_mb;
+    }
+
+    // 5. 有 cgroup 限制，计算容器内可用内存
+    size_t cgroup_limit_mb = cgroup_limit / (1024 * 1024);
+    
+    // 尝试读取当前 cgroup 内存使用量
+    size_t cgroup_usage = read_cgroup_value("/sys/fs/cgroup/memory.current");
+    if (cgroup_usage == 0) {
+        cgroup_usage = read_cgroup_value("/sys/fs/cgroup/memory/memory.usage_in_bytes");
+    }
+    
+    size_t cgroup_usage_mb = cgroup_usage / (1024 * 1024);
+    size_t cgroup_available_mb = 0;
+    
+    if (cgroup_limit_mb > cgroup_usage_mb) {
+        cgroup_available_mb = cgroup_limit_mb - cgroup_usage_mb;
+    }
+
+    // 6. 返回 cgroup 可用内存和物理机可用内存中较小的一个
+    return min(cgroup_available_mb, host_available_mb);
 }
 
 // ============================================================================
@@ -277,7 +325,7 @@ void process_batch_with_ac(
     chrono::duration<double> ac_build_time = scan_start - batch_start;  // AC构建时间
     auto last_log_time = scan_start;
     size_t last_log_lines = 0;  // 上次日志输出时的行数
-    const int LOG_INTERVAL_SECONDS = 60;  // 每 60 秒输出一次进度日志
+    const int LOG_INTERVAL_SECONDS = 30;  // 每 30 秒输出一次进度日志
     const size_t LOG_CHECK_INTERVAL = 5000;  // 每 5000 行检查一次时间
 
     // 首次打印：显示AC构建时间和内存
@@ -311,19 +359,26 @@ void process_batch_with_ac(
             chrono::duration<double> elapsed_since_last_log = current_time - last_log_time;
 
             if (elapsed_since_last_log.count() >= LOG_INTERVAL_SECONDS) {
-                chrono::duration<double> scan_elapsed = current_time - scan_start;  // 扫描时间（不含AC构建）
+                chrono::duration<double> scan_elapsed = current_time - scan_start;
                 double progress = (line_idx + 1) * 100.0 / line_size;
-                double avg_lines_per_sec = (line_idx + 1) / scan_elapsed.count();  // 累计平均速度
-                double instant_lines_per_sec = (line_idx + 1 - last_log_lines) / elapsed_since_last_log.count();  // 瞬时速度
+                double instant_lines_per_sec = (line_idx + 1 - last_log_lines) / elapsed_since_last_log.count();
+                double avg_lines_per_sec = (line_idx + 1) / scan_elapsed.count();
+                
+                // ETA
+                size_t remaining_lines = line_size - (line_idx + 1);
+                double eta_seconds = remaining_lines / avg_lines_per_sec;
+                int eta_m = (int)(eta_seconds / 60);
+                int eta_s = (int)(eta_seconds) % 60;
 
                 {
                     lock_guard<mutex> lock(cout_mutex);
                     cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
-                         << fixed << setprecision(1) << progress << "%"
-                         << " (" << (line_idx + 1) << "/" << line_size << " lines)"
-                         << ", avg: " << setprecision(0) << avg_lines_per_sec << " lines/s"
-                         << ", instant: " << instant_lines_per_sec << " lines/s"
-                         << ", scan: " << setprecision(1) << scan_elapsed.count() << "s"
+                         << fixed << setfill(' ') << setw(5) << setprecision(1) << progress << "%"
+                         << " | " << setfill('0') << setw(2) << (int)(scan_elapsed.count()/60) << ":" << setw(2) << (int)scan_elapsed.count()%60
+                         << ", ETA " << setw(2) << eta_m << ":" << setw(2) << eta_s
+                         << " | " << setprecision(0) << (line_idx + 1)/1000 << "K/" << line_size/1000 << "K"
+                         << " | " << setprecision(1) << instant_lines_per_sec/1000 << "K/s"
+                         << ", Avg " << avg_lines_per_sec/1000 << "K/s"
                          << endl;
                 }
                 last_log_time = current_time;
@@ -483,8 +538,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     // 内存估算参数（优化版 CompactACNode）
     // - 每个节点约 48 字节（vector<pair> + 3个int + vector开销）
     // - 每个词条平均约 4 字符，考虑共享前缀，平均约 3 个节点
-    // - 预估：每词条约 150 字节
-    const size_t EST_BYTES_PER_WORD = 150;  // 优化后预估
+    // - 实测：214万词条 -> 986 MB，约 483 字节/词条
+    // - 预估：每词条约 500 字节（保守估计）
+    const size_t EST_BYTES_PER_WORD = 500;  // 基于实测数据
 
     // 获取系统可用内存
     size_t available_mem_mb = get_available_memory_mb();
