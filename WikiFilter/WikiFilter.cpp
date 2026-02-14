@@ -23,8 +23,43 @@
 #include <queue>
 #include <memory>
 #include <iomanip>
+#include <sys/sysinfo.h>  // 获取系统内存信息
 
 using namespace std;
+
+// ============================================================================
+// 获取系统可用内存（单位：MB）
+// ============================================================================
+static size_t get_available_memory_mb() {
+    struct sysinfo info;
+    if (sysinfo(&info) != 0) {
+        cerr << "Warning: Failed to get system memory info, using default" << endl;
+        return 1024;  // 默认 1GB
+    }
+    // freeram 是以 mem_unit 为单位的，但通常 mem_unit = 1
+    size_t free_mb = (info.freeram * info.mem_unit) / (1024 * 1024);
+    // 也考虑 bufferram（可回收的缓冲区内存）
+    size_t buffer_mb = (info.bufferram * info.mem_unit) / (1024 * 1024);
+    size_t available_mb = free_mb + buffer_mb;
+    return available_mb;
+}
+
+// ============================================================================
+// 获取当前进程内存占用（单位：MB）
+// ============================================================================
+static size_t get_process_memory_mb() {
+    FILE* file = fopen("/proc/self/status", "r");
+    if (!file) return 0;
+    char line[128];
+    while (fgets(line, 128, file) != nullptr) {
+        if (strncmp(line, "VmRSS:", 6) == 0) {
+            fclose(file);
+            return atoi(line + 6) / 1024;  // KB -> MB
+        }
+    }
+    fclose(file);
+    return 0;
+}
 
 // ============================================================================
 // Aho-Corasick 自动机实现
@@ -167,12 +202,16 @@ void process_batch_with_ac(
 {
     auto batch_start = chrono::high_resolution_clock::now();
 
+    size_t mem_before_ac = get_process_memory_mb();
+
     // 1. 构建 AC 自动机
     AhoCorasick ac;
     for (size_t i = range.start; i < range.end; i++) {
         ac.insert(words[i], i - range.start);
     }
     ac.buildFailureLinks();
+
+    size_t mem_after_ac = get_process_memory_mb();
 
     // 2. 为本批次词条创建计数器
     vector<atomic<int>> line_counts(range.end - range.start);
@@ -188,12 +227,14 @@ void process_batch_with_ac(
     const int LOG_INTERVAL_SECONDS = 60;  // 每 60 秒输出一次进度日志
     const size_t LOG_CHECK_INTERVAL = 5000;  // 每 5000 行检查一次时间
 
-    // 首次打印：显示AC构建时间
+    // 首次打印：显示AC构建时间和内存
     {
         lock_guard<mutex> lock(cout_mutex);
         cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
              << "AC build time: " << fixed << setprecision(2) << ac_build_time.count() << "s"
              << ", words: " << (range.end - range.start)
+             << ", MEM: " << mem_after_ac << " MB"
+             << " (+" << (mem_after_ac - mem_before_ac) << " MB for AC)"
              << ", starting scan..." << endl;
     }
 
@@ -365,6 +406,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     }
 
     cout << "Text file lines: " << line_size << endl;
+    cout << "[MEM] After loading text file: " << get_process_memory_mb() << " MB" << endl;
 
     // 4. 读取词典
     string word;
@@ -379,32 +421,64 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     txt_file.close();
 
     cout << "Dictionary size: " << words.size() << " words" << endl;
+    cout << "[MEM] After loading dictionary: " << get_process_memory_mb() << " MB" << endl;
 
     // 5. 动态分批处理策略
-    // 根据词条数量和线程数动态计算批次大小
+    // 根据可用内存动态计算批次大小
     size_t total_words = words.size();
 
     // 内存估算参数
-    // - 每个 Trie 节点约 60 字节
-    // - 每个词条平均 4 字符，约 4 个节点
-    // - 目标：每批 AC 自动机内存控制在 ~128MB
-    const size_t TARGET_MEMORY_MB = 128;
-    const size_t EST_BYTES_PER_WORD = 240;  // 约 4 节点 * 60 字节
-    const size_t MAX_WORDS_PER_BATCH = (TARGET_MEMORY_MB * 1024 * 1024) / EST_BYTES_PER_WORD;
+    // - 每个 Trie 节点约 60 字节（children map + fail pointer + output）
+    // - 每个词条平均约 4 字符，考虑共享前缀，平均约 3 个节点
+    // - 实测：214 万词条 -> 约 500MB 内存
+    const size_t EST_BYTES_PER_WORD = 240;  // 保守估计
 
-    // 计算批次数量
-    // 策略：批次数至少是线程数的 3 倍（更好的负载均衡）
-    // 同时控制每批内存不超过限制
-    size_t min_batches_for_load_balance = (size_t)num_threads * 3;
-    size_t max_batches_by_memory = (total_words + 1000 - 1) / 1000;  // 至少 1000 词/批
-    size_t batches_by_memory_limit = (total_words + MAX_WORDS_PER_BATCH - 1) / MAX_WORDS_PER_BATCH;
+    // 获取系统可用内存
+    size_t available_mem_mb = get_available_memory_mb();
+    cout << "Available memory: " << available_mem_mb << " MB" << endl;
 
-    size_t num_batches = max(min_batches_for_load_balance,
-                             min(batches_by_memory_limit, max_batches_by_memory));
-    num_batches = max(num_batches, (size_t)1);  // 至少 1 批
+    // 预留内存给文件数据（2.1GB）和其他开销
+    // 文件已加载到内存，占用了约 2100 MB
+    const size_t FILE_DATA_MB = 2200;  // 文件数据 + line_ptr + line_lengths
+    const size_t RESERVE_MB = 500;      // 其他开销预留
 
-    // 根据批次数计算每批词条数
-    size_t words_per_batch = (total_words + num_batches - 1) / num_batches;
+    // 计算可用于 AC 自动机的内存
+    size_t usable_mem_mb = 0;
+    if (available_mem_mb > FILE_DATA_MB + RESERVE_MB) {
+        usable_mem_mb = available_mem_mb - FILE_DATA_MB - RESERVE_MB;
+    } else {
+        // 可用内存不足，使用保守值
+        usable_mem_mb = 512;  // 默认 512MB 用于 AC 自动机
+    }
+
+    // 计算单个 AC 自动机最多能容纳多少词条
+    size_t max_words_per_ac = (usable_mem_mb * 1024 * 1024) / EST_BYTES_PER_WORD;
+
+    // 根据线程数和内存计算批次
+    size_t num_batches;
+    size_t words_per_batch;
+
+    if (num_threads == 1) {
+        // 单线程模式：构建尽可能大的 AC 自动机，减少扫描次数
+        if (total_words <= max_words_per_ac) {
+            // 所有词条可以放入单个 AC 自动机
+            num_batches = 1;
+            words_per_batch = total_words;
+            cout << "Single-thread mode: All words fit in one AC automaton" << endl;
+        } else {
+            // 需要分批，但每批尽可能大
+            num_batches = (total_words + max_words_per_ac - 1) / max_words_per_ac;
+            words_per_batch = (total_words + num_batches - 1) / num_batches;
+            cout << "Single-thread mode: Split into " << num_batches << " batches" << endl;
+        }
+    } else {
+        // 多线程模式：批次数至少是线程数的 3 倍（更好的负载均衡）
+        size_t min_batches_for_load_balance = (size_t)num_threads * 3;
+        size_t batches_by_memory = (total_words + max_words_per_ac - 1) / max_words_per_ac;
+        num_batches = max(min_batches_for_load_balance, batches_by_memory);
+        num_batches = max(num_batches, (size_t)1);
+        words_per_batch = (total_words + num_batches - 1) / num_batches;
+    }
 
     // 估算每批内存
     size_t estimated_mem_per_batch_mb = (words_per_batch * EST_BYTES_PER_WORD) / (1024 * 1024);
@@ -413,9 +487,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     cout << "Batch strategy: " << num_batches << " batches, "
          << words_per_batch << " words/batch (max)" << endl;
     cout << "Estimated memory per batch: ~" << estimated_mem_per_batch_mb << " MB" << endl;
-    cout << "Using " << num_threads << " threads" << endl;
+    cout << "Using " << num_threads << " thread(s)" << endl;
 
-    // 6. 多线程并行处理批次
+    // 6. 批次处理
     vector<BatchRange> batches;
     for (size_t i = 0; i < num_batches; i++) {
         BatchRange range;
@@ -426,14 +500,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     }
     num_batches = batches.size();  // 更新实际批次数
 
-    // 使用线程池处理批次
-    atomic<size_t> next_batch(0);
-
-    auto worker = [&]() {
-        while (true) {
-            size_t batch_idx = next_batch.fetch_add(1);
-            if (batch_idx >= num_batches) break;
-
+    if (num_threads == 1) {
+        // 单线程模式：顺序处理，减少缓存热身开销
+        for (size_t batch_idx = 0; batch_idx < num_batches; batch_idx++) {
             process_batch_with_ac(
                 words,
                 batches[batch_idx],
@@ -445,15 +514,36 @@ static int process_files(const string& raw_path, const string& txt_path, int num
                 num_batches
             );
         }
-    };
+    } else {
+        // 多线程模式：使用线程池处理批次
+        atomic<size_t> next_batch(0);
 
-    vector<thread> threads;
-    for (int i = 0; i < num_threads; i++) {
-        threads.emplace_back(worker);
-    }
+        auto worker = [&]() {
+            while (true) {
+                size_t batch_idx = next_batch.fetch_add(1);
+                if (batch_idx >= num_batches) break;
 
-    for (auto& t : threads) {
-        t.join();
+                process_batch_with_ac(
+                    words,
+                    batches[batch_idx],
+                    line_ptr,
+                    line_lengths,
+                    line_size,
+                    output_path,
+                    batch_idx,
+                    num_batches
+                );
+            }
+        };
+
+        vector<thread> threads;
+        for (int i = 0; i < num_threads; i++) {
+            threads.emplace_back(worker);
+        }
+
+        for (auto& t : threads) {
+            t.join();
+        }
     }
 
     // 7. 清理
