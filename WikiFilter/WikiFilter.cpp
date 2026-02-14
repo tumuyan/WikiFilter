@@ -62,80 +62,130 @@ static size_t get_process_memory_mb() {
 }
 
 // ============================================================================
-// Aho-Corasick 自动机实现
+// Aho-Corasick 自动机实现（内存优化版）
+// 使用连续内存存储节点，用数组索引替代指针
 // ============================================================================
 
-struct ACNode {
-    unordered_map<char, ACNode*> children;
-    ACNode* fail = nullptr;
-    vector<int> output;  // 存储匹配词条的索引
-
-    ~ACNode() {
-        for (auto& pair : children) {
-            delete pair.second;
-        }
-    }
+// 紧凑的 AC 节点：使用 vector<pair<char,int>> 替代 unordered_map
+// 子节点按字符排序，支持二分查找
+struct CompactACNode {
+    vector<pair<char, int>> children;  // (字符, 子节点索引)，按字符排序
+    int fail = 0;                       // 失败指针（节点索引）
+    int output_start = -1;              // output 在全局数组中的起始位置，-1 表示无输出
+    int output_count = 0;               // output 数量
 };
 
 class AhoCorasick {
 private:
-    ACNode* root;
+    vector<CompactACNode> nodes;       // 所有节点存储在连续内存中
+    vector<int> outputs;               // 所有 output 存储在连续数组中
     int patternCount;
 
-public:
-    AhoCorasick() : root(new ACNode()), patternCount(0) {}
+    // 在子节点中二分查找字符
+    int findChild(int nodeIdx, char c) const {
+        const auto& children = nodes[nodeIdx].children;
+        // 二分查找
+        int left = 0, right = (int)children.size() - 1;
+        while (left <= right) {
+            int mid = left + (right - left) / 2;
+            if (children[mid].first == c) {
+                return children[mid].second;
+            } else if (children[mid].first < c) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        return -1;  // 未找到
+    }
 
-    ~AhoCorasick() {
-        delete root;
+    // 添加子节点（保持有序）
+    int addChild(int nodeIdx, char c) {
+        int newIdx = (int)nodes.size();
+        nodes.push_back(CompactACNode());
+
+        auto& children = nodes[nodeIdx].children;
+        // 找到插入位置
+        auto it = lower_bound(children.begin(), children.end(), make_pair(c, 0),
+            [](const pair<char,int>& a, const pair<char,int>& b) {
+                return a.first < b.first;
+            });
+        children.insert(it, make_pair(c, newIdx));
+        return newIdx;
+    }
+
+public:
+    AhoCorasick() : patternCount(0) {
+        nodes.reserve(1000000);  // 预分配空间
+        nodes.push_back(CompactACNode());  // 根节点
     }
 
     // 添加词条
     void insert(const string& pattern, int index) {
-        ACNode* current = root;
+        int current = 0;  // 从根节点开始
         for (char c : pattern) {
-            if (current->children.find(c) == current->children.end()) {
-                current->children[c] = new ACNode();
+            int childIdx = findChild(current, c);
+            if (childIdx == -1) {
+                childIdx = addChild(current, c);
             }
-            current = current->children[c];
+            current = childIdx;
         }
-        current->output.push_back(index);
+        // 添加输出
+        if (nodes[current].output_start == -1) {
+            nodes[current].output_start = (int)outputs.size();
+        }
+        outputs.push_back(index);
+        nodes[current].output_count++;
         patternCount++;
     }
 
     // 构建失败指针（BFS）
     void buildFailureLinks() {
-        queue<ACNode*> q;
+        queue<int> q;  // 存储节点索引
 
         // 根节点的子节点失败指针指向根
-        for (auto& pair : root->children) {
-            pair.second->fail = root;
-            q.push(pair.second);
+        for (const auto& child : nodes[0].children) {
+            nodes[child.second].fail = 0;
+            q.push(child.second);
         }
 
         // BFS 构建失败指针
         while (!q.empty()) {
-            ACNode* current = q.front();
+            int current = q.front();
             q.pop();
 
-            for (auto& pair : current->children) {
-                char c = pair.first;
-                ACNode* child = pair.second;
-                ACNode* fail = current->fail;
+            for (const auto& childPair : nodes[current].children) {
+                char c = childPair.first;
+                int child = childPair.second;
+                int fail = nodes[current].fail;
 
-                // 查找失败指针
-                while (fail != nullptr && fail->children.find(c) == fail->children.end()) {
-                    fail = fail->fail;
+                // 沿着失败指针查找
+                while (fail != 0 && findChild(fail, c) == -1) {
+                    fail = nodes[fail].fail;
                 }
 
-                if (fail == nullptr) {
-                    child->fail = root;
-                } else {
-                    child->fail = fail->children[c];
+                int failChild = findChild(fail, c);
+                if (fail == 0 && failChild == -1) {
+                    nodes[child].fail = 0;
+                } else if (failChild != -1) {
+                    nodes[child].fail = failChild;
                     // 合并输出
-                    if (!child->fail->output.empty()) {
-                        child->output.insert(child->output.end(),
-                            child->fail->output.begin(), child->fail->output.end());
+                    if (nodes[failChild].output_count > 0) {
+                        // 需要扩容 output
+                        int new_start = (int)outputs.size();
+                        // 复制原有 output
+                        for (int i = 0; i < nodes[child].output_count; i++) {
+                            outputs.push_back(outputs[nodes[child].output_start + i]);
+                        }
+                        // 添加 fail 节点的 output
+                        for (int i = 0; i < nodes[failChild].output_count; i++) {
+                            outputs.push_back(outputs[nodes[failChild].output_start + i]);
+                        }
+                        nodes[child].output_start = new_start;
+                        nodes[child].output_count += nodes[failChild].output_count;
                     }
+                } else {
+                    nodes[child].fail = 0;
                 }
                 q.push(child);
             }
@@ -145,25 +195,28 @@ public:
     // 搜索文本，返回所有匹配的词条索引（去重）
     unordered_set<int> search(const char* text, size_t length) {
         unordered_set<int> matches;
-        ACNode* current = root;
+        int current = 0;  // 从根节点开始
 
         for (size_t i = 0; i < length; i++) {
             char c = text[i];
 
             // 沿着失败指针查找
-            while (current != root && current->children.find(c) == current->children.end()) {
-                current = current->fail;
+            while (current != 0 && findChild(current, c) == -1) {
+                current = nodes[current].fail;
             }
 
-            if (current->children.find(c) != current->children.end()) {
-                current = current->children[c];
+            int child = findChild(current, c);
+            if (child != -1) {
+                current = child;
             } else {
-                current = root;
+                current = 0;
             }
 
             // 收集匹配
-            if (!current->output.empty()) {
-                matches.insert(current->output.begin(), current->output.end());
+            if (nodes[current].output_count > 0) {
+                for (int j = 0; j < nodes[current].output_count; j++) {
+                    matches.insert(outputs[nodes[current].output_start + j]);
+                }
             }
         }
 
@@ -427,11 +480,11 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     // 根据可用内存动态计算批次大小
     size_t total_words = words.size();
 
-    // 内存估算参数
-    // - 每个 Trie 节点约 60 字节（children map + fail pointer + output）
+    // 内存估算参数（优化版 CompactACNode）
+    // - 每个节点约 48 字节（vector<pair> + 3个int + vector开销）
     // - 每个词条平均约 4 字符，考虑共享前缀，平均约 3 个节点
-    // - 实测：214 万词条 -> 约 500MB 内存
-    const size_t EST_BYTES_PER_WORD = 240;  // 保守估计
+    // - 预估：每词条约 150 字节
+    const size_t EST_BYTES_PER_WORD = 150;  // 优化后预估
 
     // 获取系统可用内存
     size_t available_mem_mb = get_available_memory_mb();
