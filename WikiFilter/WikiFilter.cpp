@@ -159,6 +159,7 @@ void process_batch_with_ac(
     const vector<string>& words,
     const BatchRange& range,
     char** line_ptr,
+    const vector<size_t>& line_lengths,
     size_t line_size,
     const string& output_path,
     int batch_id,
@@ -181,13 +182,24 @@ void process_batch_with_ac(
 
     // 3. 扫描所有行
     auto scan_start = chrono::high_resolution_clock::now();
+    chrono::duration<double> ac_build_time = scan_start - batch_start;  // AC构建时间
     auto last_log_time = scan_start;
+    size_t last_log_lines = 0;  // 上次日志输出时的行数
     const int LOG_INTERVAL_SECONDS = 60;  // 每 60 秒输出一次进度日志
     const size_t LOG_CHECK_INTERVAL = 5000;  // 每 5000 行检查一次时间
 
+    // 首次打印：显示AC构建时间
+    {
+        lock_guard<mutex> lock(cout_mutex);
+        cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
+             << "AC build time: " << fixed << setprecision(2) << ac_build_time.count() << "s"
+             << ", words: " << (range.end - range.start)
+             << ", starting scan..." << endl;
+    }
+
     for (size_t line_idx = 0; line_idx < line_size; line_idx++) {
         const char* line_text = line_ptr[line_idx];
-        size_t line_len = strlen(line_text);
+        size_t line_len = line_lengths[line_idx];
 
         if (line_len == 0) continue;
 
@@ -205,20 +217,23 @@ void process_batch_with_ac(
             chrono::duration<double> elapsed_since_last_log = current_time - last_log_time;
 
             if (elapsed_since_last_log.count() >= LOG_INTERVAL_SECONDS) {
-                chrono::duration<double> total_elapsed = current_time - batch_start;
+                chrono::duration<double> scan_elapsed = current_time - scan_start;  // 扫描时间（不含AC构建）
                 double progress = (line_idx + 1) * 100.0 / line_size;
-                double lines_per_sec = (line_idx + 1) / total_elapsed.count();
+                double avg_lines_per_sec = (line_idx + 1) / scan_elapsed.count();  // 累计平均速度
+                double instant_lines_per_sec = (line_idx + 1 - last_log_lines) / elapsed_since_last_log.count();  // 瞬时速度
 
                 {
                     lock_guard<mutex> lock(cout_mutex);
                     cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
                          << fixed << setprecision(1) << progress << "%"
                          << " (" << (line_idx + 1) << "/" << line_size << " lines)"
-                         << ", " << setprecision(0) << lines_per_sec << " lines/s"
-                         << ", elapsed: " << setprecision(1) << total_elapsed.count() << "s"
+                         << ", avg: " << setprecision(0) << avg_lines_per_sec << " lines/s"
+                         << ", instant: " << instant_lines_per_sec << " lines/s"
+                         << ", scan: " << setprecision(1) << scan_elapsed.count() << "s"
                          << endl;
                 }
                 last_log_time = current_time;
+                last_log_lines = line_idx + 1;
             }
         }
     }
@@ -245,14 +260,15 @@ void process_batch_with_ac(
     }
 
     auto batch_end = chrono::high_resolution_clock::now();
-    chrono::duration<double> duration = batch_end - batch_start;
+    chrono::duration<double> scan_duration = batch_end - scan_start;
 
     {
         lock_guard<mutex> lock(cout_mutex);
         cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
              << "words: " << (range.end - range.start)
              << ", matched: " << match_count
-             << ", time: " << duration.count() << "s" << endl;
+             << ", AC build: " << fixed << setprecision(2) << ac_build_time.count() << "s"
+             << ", scan: " << scan_duration.count() << "s" << endl;
     }
 }
 
@@ -322,14 +338,20 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 
     // 3. 分行处理
     vector<unsigned long> line;
+    vector<size_t> line_lengths;  // 预计算每行长度
     line.push_back(0);
     for (unsigned long i = 0; i < size; i++) {
         if (raw[i] == '\n') {
+            // 计算当前行长度（不含换行符）
+            size_t line_start = line.back();
+            line_lengths.push_back(i - line_start);
             line.push_back(i);
             raw[i] = '\0';
         }
     }
+    // 处理最后一行（如果没有以换行符结尾）
     if (raw[size - 1] != '\n') {
+        line_lengths.push_back(size - line.back());
         line.push_back(size + 1);
     }
 
@@ -416,6 +438,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
                 words,
                 batches[batch_idx],
                 line_ptr,
+                line_lengths,
                 line_size,
                 output_path,
                 batch_idx,
@@ -468,7 +491,8 @@ int main(int argc, char* argv[]) {
         num_threads = atoi(argv[3]);
     } else {
         num_threads = thread::hardware_concurrency();
-        if (num_threads >= 16) {
+        if (num_threads > 64) {
+            // 线程数太大，可能在容器中获得了物理机的核心数
             cerr << "threads " << num_threads << " -> 2" << endl;
             num_threads = 2;
         }
