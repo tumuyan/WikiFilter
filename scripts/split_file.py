@@ -30,7 +30,13 @@ def split_file(input_file, output_dir, num_files):
                 i+=1
                 output_file = os.path.join(output_dir, f'wiki_{i:02}.txt')
                 of = open(output_file, 'w', encoding='utf-8')
+    
+    # 检查最后一个文件是否为空，如果是则删除
+    last_file = of.name
     of.close()
+    if os.path.getsize(last_file) == 0:
+        os.remove(last_file)
+        i -= 1
 
     print(f'文件已成功分割为{i+1}个小文件到{output_dir}')
 

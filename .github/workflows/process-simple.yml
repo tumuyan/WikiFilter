@@ -1,0 +1,516 @@
+# This workflow runs all processing steps in a single container
+# No parallel processing, single split only
+
+name: Process Data (Simple)
+
+on:
+  schedule:
+  - cron: "0 2 10,25 * *"
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      dict_source:
+        description: '选择需要处理的词库'
+        required: true
+        type: choice
+        default: wiki
+        options:
+          - wiki
+          - release
+          - url
+      dict_url:
+        description: '词库文件下载路径'
+        required: false
+        default: ''
+      dict:
+        description: '词库文件名（关键字）'
+        required: true
+        default: 'dict.txt'
+      dict_tag:
+        description: '打包文件时的标签'
+        required: false
+        default: ''
+      source_tag:
+        description: '维基全文的版本'
+        required: false
+        default: ''
+      split_count:
+        description: '分片数量'
+        required: true
+        type: number
+        default: 1
+
+env:
+  DICT_NAME: ${{ github.event.inputs.dict || 'dict.txt' }}
+  SPLIT_COUNT: ${{ github.event.inputs.split_count || '1' }}
+
+permissions:
+  contents: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.date_version.outputs.VERSION }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4.2.1
+      with:
+        distribution: oracle
+        java-version: '20'
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get -y install wget p7zip-full opencc
+        python -m pip install --upgrade pip
+        pip install OpenCC
+    
+    - name: Get Date Version 1
+      if: github.event.inputs.source_tag == ''
+      run: |
+        current_date=$(date +%Y-%m-%d)
+        current_year=$(date +%Y -d "$current_date")
+        current_month=$(date +%m -d "$current_date")
+        current_day=$(date +%d -d "$current_date")
+        
+        if [ $current_day -gt 21 ]; then
+            VERSION="${current_year}${current_month}20"
+        else
+            VERSION="${current_year}${current_month}01"
+        fi
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+    
+    - name: Get Date Version 2
+      if: github.event.inputs.source_tag != ''
+      run: |
+        VERSION="${{github.event.inputs.source_tag}}"
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+    
+    - name: Set Date Version
+      id: date_version
+      run: |
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "版本号为: $VERSION"
+    
+    - name: Cache dump files
+      id: cache-dump
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-dump
+      with:
+        path: |
+          *xml.bz2
+        key: ${{ env.cache-name }}-${{ env.VERSION}}
+    
+    - name: Cache XML Doc files
+      id: xml-doc-files
+      uses: actions/cache@v4
+      env:
+        cache-name: xml-doc-files
+      with:
+        path: |
+          extracted/zhwiki
+        key: ${{ env.cache-name }}-${{ env.VERSION}}
+    
+    - name: Cache Text files
+      id: cache-text-files
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-text-files
+      with:
+        path: |
+          text/AA/*.txt
+        key: ${{ env.cache-name }}-${{ env.VERSION}}
+    
+    - name: Check if VERSION file exists in recent releases
+      id: check-release
+      continue-on-error: true
+      run: |
+        TARGET_FILE="zhwiki-${VERSION}-extracted.tar.gz"
+        echo "Looking for file: $TARGET_FILE"
+        
+        RELEASE_TAGS=$(gh release list --limit 50 --json tagName --jq '
+          .[:5] | .[].tagName
+        ' 2>/dev/null || echo "")
+        
+        FOUND_RELEASE=""
+        
+        for tag in $RELEASE_TAGS; do
+          if [ -n "$tag" ]; then
+            echo "Checking release: $tag"
+            ASSETS=$(gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null || echo "")
+            
+            if echo "$ASSETS" | grep -q "$TARGET_FILE"; then
+              FOUND_RELEASE="$tag"
+              echo "Found $TARGET_FILE in release: $tag"
+              break
+            fi
+          fi
+        done
+        
+        if [ -n "$FOUND_RELEASE" ]; then
+          echo "release-tag=$FOUND_RELEASE" >> "$GITHUB_ENV"
+          echo "release-exists=true" >> "$GITHUB_ENV"
+          echo "Will download from: $FOUND_RELEASE"
+        else
+          echo "release-exists=false" >> "$GITHUB_ENV"
+          echo "File $TARGET_FILE not found in recent releases"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Download xml-doc-files from Release
+      id: download-release
+      if: steps.xml-doc-files.outputs.cache-hit != 'true' && env.release-exists == 'true'
+      continue-on-error: true
+      run: |
+        mkdir -p extracted
+        TARGET_FILE="zhwiki-${VERSION}-extracted.tar.gz"
+        
+        echo "Downloading $TARGET_FILE from release: ${{ env.release-tag }}"
+        gh release download "${{ env.release-tag }}" \
+          --pattern "$TARGET_FILE" \
+          --dir . || echo "Download failed"
+        
+        if [ -f "$TARGET_FILE" ]; then
+          echo "Downloaded: $TARGET_FILE"
+          tar -xzf "$TARGET_FILE"
+          mv zhwiki extracted/
+          echo "downloaded-from-release=true" >> "$GITHUB_ENV"
+          ls -lh extracted/
+        else
+          echo "File not downloaded"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Check invalid file
+      run: |
+        if [ -f "extracted/zhwiki" ]; then
+          echo "extracted=true" >> "$GITHUB_ENV"
+          echo "Pass: Found extracted file (cache or release)"
+        else
+          echo "Fail: No cached text file"
+        fi
+
+        if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
+          echo "Fail: Not exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2"
+          rm -f *xml.bz2
+        else
+          echo "Pass: No invalid dump file"
+        fi
+    
+    - name: Download wiki dump
+      if: ${{env.extracted != 'true'}}
+      continue-on-error: true
+      run: |
+        if [ ! -f "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" ]; then
+          echo download zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+          curl -o "zhwiki-${VERSION}-pages-articles-multistream.xml.bz2" https://dumps.wikimedia.org/zhwiki/${VERSION}/zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        else
+          echo exist zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        fi
+        
+        if [[ "${extracted}" != "true" ]]; then
+          7z x zhwiki-${VERSION}-pages-articles-multistream.xml.bz2
+        fi
+        
+        if [ -f "zhwiki-${VERSION}-pages-articles-multistream.xml" ]; then
+          mv zhwiki-${VERSION}-pages-articles-multistream.xml zhwiki.xml
+        fi
+        ls -l
+    
+    - name: Wikiextractor (XML dump to Extracted doc)
+      if: ${{ env.extracted != 'true' }}
+      run: |
+        git clone https://github.com/tumuyan/wikiextractor
+        python -m wikiextractor.wikiextractor.WikiExtractor -b 50G zhwiki.xml
+        mkdir -p extracted
+        rm zhwiki.xml
+        mv text/AA/wiki_00 ./extracted/zhwiki
+    
+    - name: Extracted doc to one-line-article
+      run: |
+        python scripts/one_line.py extracted 100
+        echo "extracted:"
+        ls -lh extracted
+        echo "scripts:"
+        ls -lh scripts
+    
+    - name: Compress xml-doc-files for Release
+      id: compress-wiki
+      if: env.release-exists != 'true'
+      run: |
+        if [ -f "extracted/zhwiki" ]; then
+          tar -czf zhwiki-${VERSION}-extracted.tar.gz -C extracted zhwiki
+          FILE_SIZE=$(stat -c%s "zhwiki-${VERSION}-extracted.tar.gz")
+          FILE_SIZE_MB=$((FILE_SIZE / 1024 / 1024))
+          echo "File size: ${FILE_SIZE_MB} MB"
+          ls -lh zhwiki-${VERSION}-extracted.tar.gz
+          
+          if [ $FILE_SIZE_MB -ge 100 ]; then
+            echo "file-valid=true" >> "$GITHUB_ENV"
+            echo "File size OK (>= 100MB), will upload to release"
+          else
+            echo "file-valid=false" >> "$GITHUB_ENV"
+            echo "::warning::File too small (${FILE_SIZE_MB}MB < 100MB), skipping upload"
+            rm -f zhwiki-${VERSION}-extracted.tar.gz
+          fi
+        fi
+    
+    - name: Get latest release for upload
+      id: get-latest-release
+      if: env.release-exists != 'true' && env.file-valid == 'true'
+      run: |
+        LATEST_RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+        
+        if [ -n "$LATEST_RELEASE" ] && [ "$LATEST_RELEASE" != "null" ]; then
+          echo "upload-release-tag=$LATEST_RELEASE" >> "$GITHUB_ENV"
+          echo "Will upload to latest release: $LATEST_RELEASE"
+        else
+          echo "upload-release-tag=wiki-cache-v1" >> "$GITHUB_ENV"
+          echo "No existing release, will create: wiki-cache-v1"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload xml-doc-files to Release
+      uses: softprops/action-gh-release@v2
+      if: env.release-exists != 'true' && env.file-valid == 'true'
+      with:
+        tag_name: ${{ env.upload-release-tag }}
+        name: Wiki Cache
+        body: |
+          ## Wiki 提取数据备份
+          - 版本: ${{ env.VERSION }}
+          - 用途: 恢复 CI 缓存，避免重复下载
+        files: zhwiki-${{ env.VERSION }}-extracted.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Clean up old wiki files from releases
+      if: env.release-exists != 'true' && env.file-valid == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        KEEP_COUNT: 3
+      run: |
+        RELEASE_TAGS=$(gh release list --limit 20 --json tagName --jq '.[:5] | .[].tagName' 2>/dev/null || echo "")
+        
+        declare -A FILE_VERSIONS
+        declare -A FILE_RELEASES
+        
+        for tag in $RELEASE_TAGS; do
+          if [ -n "$tag" ]; then
+            echo "Checking release: $tag"
+            ASSETS=$(gh release view "$tag" --json assets --jq '.assets[] | select(.name | test("^zhwiki-[0-9]+-extracted\\.tar\\.gz$")) | .name' 2>/dev/null || echo "")
+            
+            for file in $ASSETS; do
+              if [ -n "$file" ]; then
+                VERSION_NUM=$(echo "$file" | grep -oE '[0-9]{8}')
+                if [ -n "$VERSION_NUM" ]; then
+                  FILE_VERSIONS["$VERSION_NUM"]="$file"
+                  FILE_RELEASES["$VERSION_NUM"]="$tag"
+                  echo "Found: $file (version: $VERSION_NUM) in release: $tag"
+                fi
+              fi
+            done
+          fi
+        done
+        
+        KEEP_VERSIONS=$(printf '%s\n' "${!FILE_VERSIONS[@]}" | sort -r | head -n $KEEP_COUNT)
+        echo "Versions to keep: $KEEP_VERSIONS"
+        
+        for version in "${!FILE_VERSIONS[@]}"; do
+          if ! echo "$KEEP_VERSIONS" | grep -q "$version"; then
+            FILE="${FILE_VERSIONS[$version]}"
+            TAG="${FILE_RELEASES[$version]}"
+            echo "Deleting old file: $FILE from release: $TAG"
+            gh release delete-asset "$TAG" "$FILE" --yes || echo "Failed to delete $FILE"
+          fi
+        done
+    
+    - name: Upload OpenCC Artifact
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: opencc
+        path: |
+          scripts/wiki*.opencc.txt
+    
+    - name: Split Text
+      run: |
+        rm -f text/AA/*
+        python scripts/split_file.py extracted/zhwiki.txt text/AA/ ${{ env.SPLIT_COUNT }}
+        ls -lh text/AA/*
+    
+    - name: Download dict (Dict url)
+      continue-on-error: true
+      if: github.event.inputs.dict_url != '' && github.event.inputs.dict_source == 'url'
+      run: |
+        wget -O ${{env.DICT_NAME }} ${{github.event.inputs.dict_url}}
+        ls
+        echo "dict_downloaded=true" >> "$GITHUB_ENV"
+    
+    - name: Download dict (Github Release)
+      continue-on-error: true
+      if: github.event.inputs.dict_source == 'release'
+      run: |
+        REPO_URL="https://api.github.com/repos/${{ github.repository }}/releases/latest"
+        RELEASE_INFO=$(wget -qO- "$REPO_URL")
+        DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("'"${{env.DICT_NAME }}"'")) | .browser_download_url')
+        wget -O ${{env.DICT_NAME }} "$DOWNLOAD_URL"
+        ls
+        echo "dict_downloaded=true" >> "$GITHUB_ENV"
+    
+    - name: Download dict (Wiki Dump)
+      continue-on-error: true
+      if: env.dict_downloaded != 'true'
+      run: |
+        FILENAME=zhwiki-${VERSION}-all-titles-in-ns0
+        echo download ${FILENAME}.gz
+        wget https://dumps.wikimedia.org/zhwiki/${VERSION}/${FILENAME}.gz
+        7z x ${FILENAME}.gz
+        pwd
+        echo file list:
+        ls -lh
+        echo mv ${FILENAME}
+        mv ${FILENAME} ${{env.DICT_NAME }}
+        ls -lh
+    
+    - name: Download Dict-Tick
+      uses: robinraju/release-downloader@v1.10
+      with:
+        repository: 'tumuyan/Dict-Trick'
+        latest: true
+        preRelease: false
+        fileName: 'Clean.jar'
+        tarBall: false
+        zipBall: false
+        out-file-path: ''
+        extract: false
+    
+    - name: Check & Clean Dict
+      id: check-dict
+      run: |
+        dict="${{ env.DICT_NAME }}"
+        if [ -f "${dict}" ]; then
+          echo "check-dict=true" >> $GITHUB_OUTPUT
+          java -jar Clean.jar -i "${dict}" -c scripts/dict-tick-preprocess.txt
+        else
+          echo "check-dict=false" >> $GITHUB_OUTPUT
+          echo "::warning:: not exist ${{env.DICT_NAME }}"
+          exit 1
+        fi
+
+        filename="${dict%.*}"
+        echo "dict_filename=$filename" >> "$GITHUB_ENV"
+        if [ -f "${filename}.dict.txt" ]; then
+          echo "rename ${filename}.dict.txt & ${{env.DICT_NAME }}"
+          mv "${{env.DICT_NAME }}" "${filename}.raw.txt"
+          mv "${filename}.dict.txt" "${{env.DICT_NAME }}"
+        else
+          echo "::warning:: not exist ${filename}.dict.txt"
+        fi
+
+        echo "ls ${filename}:"
+        ls ${filename}*
+    
+    - name: Build WikiFilter
+      run: |
+        cd WikiFilter
+        g++ -o WikiFilter WikiFilter.cpp
+        chmod +x WikiFilter
+        ls -lh
+    
+    - name: Run Filter
+      run: |
+        echo "=== 开始过滤 ==="
+        echo "词库: ${{ env.DICT_NAME }}"
+        echo "输入目录: text/AA"
+        echo "分片数量: ${{ env.SPLIT_COUNT }}"
+        
+        for i in $(seq -f "%02g" 0 $((${{ env.SPLIT_COUNT }} - 1))); do
+          INPUT_FILE="text/AA/wiki_${i}.txt"
+          
+          if [ ! -f "$INPUT_FILE" ]; then
+            echo "跳过不存在的文件: $INPUT_FILE"
+            continue
+          fi
+          
+          # 跳过空文件
+          if [ ! -s "$INPUT_FILE" ]; then
+            echo "跳过空文件: $INPUT_FILE"
+            continue
+          fi
+          
+          echo "处理: $INPUT_FILE"
+          ./WikiFilter/WikiFilter "${{ env.DICT_NAME }}" "$INPUT_FILE" 1
+        done
+        
+        echo "=== 过滤完成 ==="
+        ls -lh text/AA/*.csv 2>/dev/null || echo "没有生成 CSV 文件"
+    
+    - name: Merge Results
+      run: |
+        source_dir="text/AA/"
+        
+        echo "=== 合并结果 ==="
+        ls -lh $source_dir
+        
+        # 移动 opencc 配置文件
+        mv $source_dir/*.opencc.txt scripts/ 2>/dev/null || true
+        
+        # 删除原始文件
+        rm -f $source_dir/*.raw.txt 2>/dev/null || true
+        
+        # 第一次合并
+        echo "第一次合并 (filted.csv)..."
+        python scripts/merge_csv.py $source_dir merge 0 filted.csv
+        
+        # 删除中间文件
+        rm -f $source_dir/*.txt.filted.csv 2>/dev/null || true
+        
+        # OpenCC 转换
+        if [ -f "$source_dir/merge.csv" ] && [ -f "scripts/a2s2.json" ]; then
+          echo "OpenCC 转换..."
+          opencc -i "$source_dir/merge.csv" -o "$source_dir/merge.chs.csv" -c scripts/a2s2.json
+          
+          # 第二次合并
+          echo "第二次合并 (chs.csv)..."
+          python scripts/merge_csv.py $source_dir filted.chs 8 merge.chs.csv
+        fi
+        
+        echo "=== 合并完成 ==="
+        ls -lh $source_dir/*.csv $source_dir/*.txt $source_dir/*.chs.* $source_dir/*.merge.* 2>/dev/null || true
+    
+    - name: Upload Result (Step 1)
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_1
+        path: |
+         text/AA/*.chs.*
+         text/AA/*.merge.*
+         text/AA/*.csv
+    
+    - name: Upload Result (Final)
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_all
+        path: |
+         text/AA/*.chs.*
+         text/AA/*.merge.*
+         text/AA/*.csv
+    
+    - name: Upload Simplified Chinese Result
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: wiki_result_chs_dict_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_${{github.event.inputs.dict_tag}}
+        path: |
+          text/AA/filted.chs.txt
