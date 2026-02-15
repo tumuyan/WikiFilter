@@ -100,8 +100,8 @@ for i in $(seq -f "%02g" 0 $((SPLIT_COUNT - 1))); do
     echo "处理: $INPUT_FILE"
     ./WikiFilter/WikiFilter "$DICT_NAME" "$INPUT_FILE" 1
     
-    # 移动输出文件
-    if [ -f "${INPUT_FILE}.filted.csv" ]; then
+    # 移动输出文件（仅当输入输出目录不同时）
+    if [ "$INPUT_DIR" != "$OUTPUT_DIR" ] && [ -f "${INPUT_FILE}.filted.csv" ]; then
         mv "${INPUT_FILE}.filted.csv" "$OUTPUT_DIR/"
     fi
 done
