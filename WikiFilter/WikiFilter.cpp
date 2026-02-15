@@ -28,6 +28,19 @@
 using namespace std;
 
 // ============================================================================
+// 全局常量
+// ============================================================================
+// 内存估算参数：实测214万词条 -> 986 MB，约 483 字节/词条
+// 预估：每词条约 500 字节（保守估计）
+const size_t EST_BYTES_PER_WORD = 500;
+
+// ============================================================================
+// 全局变量
+// ============================================================================
+// 批次处理前的基准内存（用于计算AC内存增量）
+static atomic<size_t> g_base_memory_mb(0);
+
+// ============================================================================
 // 从文件读取数值（用于 cgroup 内存信息）
 // ============================================================================
 static size_t read_cgroup_value(const char* path) {
@@ -509,16 +522,12 @@ void process_batch_with_ac(
 {
     auto batch_start = chrono::high_resolution_clock::now();
 
-    size_t mem_before_ac = get_process_memory_mb();
-
     // 1. 构建 AC 自动机
     AhoCorasick ac;
     for (size_t i = range.start; i < range.end; i++) {
         ac.insert(words[i], i - range.start);
     }
     ac.buildFailureLinks();
-
-    size_t mem_after_ac = get_process_memory_mb();
 
     // 2. 为本批次词条创建计数器
     vector<atomic<int>> line_counts(range.end - range.start);
@@ -540,11 +549,14 @@ void process_batch_with_ac(
     // 首次打印：显示AC构建时间和内存
     {
         lock_guard<mutex> lock(cout_mutex);
+        size_t process_mem_mb = get_process_memory_mb();
+        size_t base_mem_mb = g_base_memory_mb.load();
+        size_t ac_total_mb = (process_mem_mb > base_mem_mb) ? (process_mem_mb - base_mem_mb) : 0;
         cout << "Batch[" << batch_id + 1 << "/" << total_batches << "] "
              << "AC build time: " << fixed << setprecision(2) << ac_build_time.count() << "s"
              << ", words: " << (range.end - range.start)
-             << ", MEM: " << mem_after_ac << " MB"
-             << " (+" << (mem_after_ac - mem_before_ac) << " MB for AC)"
+             << ", MEM: " << process_mem_mb << " MB"
+             << " (+" << ac_total_mb << " MB for all AC)"
              << ", starting scan..." << endl;
     }
 
@@ -700,11 +712,7 @@ static int process_files(const string& raw_path, const string& txt_path, int num
     // ========================================================================
     // 第二步：内存规划（根据词条数预估 AC 自动机内存，剩余给 chunk）
     // ========================================================================
-    
-    // 内存估算参数
-    // - 实测：214万词条 -> 986 MB，约 483 字节/词条
-    // - 预估：每词条约 500 字节（保守估计）
-    const size_t EST_BYTES_PER_WORD = 500;
+
     const size_t RESERVE_MB = 300;  // 预留给系统和其他开销
     
     // 获取系统可用内存
@@ -806,11 +814,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
             cout << "Single-thread mode: Split into " << num_batches << " batches" << endl;
         }
     } else {
-        // 多线程模式：批次数至少是线程数的 3 倍
-        size_t min_batches_for_load_balance = (size_t)num_threads * 3;
+        // 多线程模式：根据内存限制计算批次数，确保至少等于线程数
         size_t batches_by_memory = (total_words + max_words_per_ac - 1) / max_words_per_ac;
-        num_batches = max(min_batches_for_load_balance, batches_by_memory);
-        num_batches = max(num_batches, (size_t)1);
+        num_batches = max(batches_by_memory, (size_t)num_threads);
         words_per_batch = (total_words + num_batches - 1) / num_batches;
     }
 
@@ -835,6 +841,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 
     if (num_threads == 1) {
         // 单线程模式：顺序处理，减少缓存热身开销
+        // 记录基准内存
+        g_base_memory_mb.store(get_process_memory_mb());
+        
         for (size_t batch_idx = 0; batch_idx < num_batches; batch_idx++) {
             process_batch_with_ac(
                 words,
@@ -847,6 +856,9 @@ static int process_files(const string& raw_path, const string& txt_path, int num
         }
     } else {
         // 多线程模式：使用线程池处理批次
+        // 记录基准内存（所有batch开始前的内存）
+        g_base_memory_mb.store(get_process_memory_mb());
+        
         atomic<size_t> next_batch(0);
 
         auto worker = [&]() {
