@@ -17,8 +17,8 @@ fi
 cd "$WIKIFILTER_DIR"
 echo "工作目录: $(pwd)"
 
-# 编译
-g++ -o WikiFilter WikiFilter.cpp
+# 编译（-O3 最高优化，-pthread 多线程支持）
+g++ -O3 -pthread -o WikiFilter WikiFilter.cpp
 chmod +x WikiFilter
 
 echo "构建完成: $WIKIFILTER_DIR/WikiFilter"

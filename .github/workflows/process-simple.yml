@@ -425,7 +425,7 @@ jobs:
     - name: Build WikiFilter
       run: |
         cd WikiFilter
-        g++ -o WikiFilter WikiFilter.cpp
+        g++ -O3 -pthread -o WikiFilter WikiFilter.cpp
         chmod +x WikiFilter
         ls -lh
     

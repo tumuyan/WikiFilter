@@ -4,8 +4,8 @@
 name: Process data
 
 on:
-  schedule:
-  - cron: "0 2 10,25 * *"
+  # schedule:
+  # - cron: "0 2 10,25 * *"
   repository_dispatch:
   workflow_dispatch:
     inputs:

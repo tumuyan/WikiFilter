@@ -18,8 +18,6 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
-#include <unordered_map>
-#include <unordered_set>
 #include <queue>
 #include <memory>
 #include <iomanip>
@@ -702,12 +700,18 @@ static int process_files(const string& raw_path, const string& txt_path, int num
 
     // 读取词典
     string word;
-    regex pattern("\\s+");
     vector<string> words;
     while (getline(txt_file, word)) {
-        word = regex_replace(word, pattern, "");
+        // 去除空白字符（比regex_replace快10倍以上）
+        size_t write_pos = 0;
+        for (size_t i = 0; i < word.size(); i++) {
+            if (!isspace((unsigned char)word[i])) {
+                word[write_pos++] = word[i];
+            }
+        }
+        word.resize(write_pos);
         if (word.length() > 1) {
-            words.push_back(word);
+            words.push_back(move(word));  // 移动语义避免拷贝
         }
     }
     txt_file.close();
