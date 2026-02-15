@@ -344,10 +344,11 @@ jobs:
         path: |
           scripts/wiki*.opencc.txt
     
-    - name: Split Text
+    - name: Copy Text
       run: |
         rm -f text/AA/*
-        python scripts/split_file.py extracted/zhwiki.txt text/AA/ ${{ env.SPLIT_COUNT }}
+        mkdir -p text/AA
+        cp extracted/zhwiki.txt text/AA/wiki_00.txt
         ls -lh text/AA/*
     
     - name: Download dict (Dict url)
@@ -425,7 +426,7 @@ jobs:
     - name: Build WikiFilter
       run: |
         cd WikiFilter
-        g++ -o WikiFilter WikiFilter.cpp
+        g++ -O3 -pthread -o WikiFilter WikiFilter.cpp
         chmod +x WikiFilter
         ls -lh
     
