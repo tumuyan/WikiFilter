@@ -31,30 +31,60 @@ def split_article(text):
     # 创建一个字典来存储 key 和其对应的值
     PATTERN = r'(zh-hans|zh-cn):([^;]+)'
     dictionary = {}
-    result = []
     keys = []
     clips = []
     difference = set()
     for line in matches:
-        # 去除{H|  }
+        if len(line)> line.count(';')*64:
+            continue
+        # 去除字符串两端的{H|  } 或者 {}
         string = line.strip()[1:-1].strip()
-        if len(text) >= 2 and text[1] == "|": 
-            line = line[2]
+        
+        # 尝试用 | 分割，处理多种格式
+        parts = string.split('|', 1)
+        if len(parts) == 2:
+            prefix = parts[0].strip()
+            remainder = parts[1].strip()
+            if prefix in "*HhAa-":
+                # 处理 {H|...} 或 {A|...} 等单字符前缀格式
+                string = remainder
+            elif prefix in remainder:
+                # 格式: {word|zh-cn:word;...} 前缀词重复，跳过前缀
+                string = remainder
+            elif ':' not in prefix and len(prefix) >= 2:
+                # 格式: {默认值|lang:value;...} 默认值无语言标签
+                # 将 | 替换为 ; 使默认值成为独立的 locale
+                string = "unknow:" + prefix + ';' + remainder
+            # 其他情况保持原 string
+        # 处理 {H ...} 或 {A|...} 等单字符前缀格式
+        if len(string) >= 2 and string[0] in "*HhAa-" and string[1] in " |":
+            string = string[2:]
+        elif string.startswith("|"):
+            string = string[1:]
         # 捕获简中关键字
         match = re.search(PATTERN, string)
         if match:
             key = match.group(2).strip()
             if remove_punctuation_length(key) >= 2 and len(key)<=30 and  any(ord(c) >= 128 for c in key):
-                # 遍历各个区域
+                # 遍历各个区域，优先用分号分割，若无分号则用空格分割
                 locales = string.split(';')
+                if len(locales) == 1:
+                    locales = string.split()
                 if len(locales) > 1:
-                    record = True
+                    recorded = False
                     for locale in locales:
                         if len(locale) >= 2:
                             parts = locale.split(':', 1)
                             if len(parts) == 2:
                                 lang, value = parts
+                                lang = lang.strip()
+                                # 校验 lang，应该只包含英文字母和连字符
+                                if not re.match(r'^[a-zA-Z][a-zA-Z-]*$', lang):
+                                    print(f"Warning: Invalid lang '{lang}' in {repr(string)}, length {len(string)}")
+                                    continue
                                 value = value.strip()
+                                if value in "重定向;重新導向":
+                                    continue
                                 if key != value and len(value) >= 2 and len(value)<=30:
                                     if value in dictionary:
                                         if key!= dictionary[value]:
@@ -62,15 +92,15 @@ def split_article(text):
                                             difference.add(value+"\t"+dictionary[value])
                                     else:
                                         dictionary[value] = key
-                                    if record:
+                                    if not recorded:
                                         clips.append(line)
-                                        keys.append(value)
-                                        recorded = False
+                                        keys.append(key)
+                                        recorded = True
 
                         # else:
                         #     print(f"Warning: Skipping locale with length < 2: {locale}")
                 else:
-                    print(f"Warning: Skipping string with < 2 locales: {string}")
+                    print(f"Warning: Skipping string with < 2 locales: {repr(string)}")
             
     for i in range(len(keys)):
         text = text.replace(clips[i],keys[i])
@@ -100,7 +130,8 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
   pattern = r'\s[\x09-~]+\s'
   dictionary = {}
   difference = set()
-  with open(filename, 'r') as f:
+
+  with open(filename, 'r') as f, open(output_filename, 'w') as output_file:
     buffer = ""
     for line in f:
       if line.startswith('<doc'):
@@ -119,8 +150,7 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
           dic, text, dif = split_article(output_line)
           dictionary.update(dic)
           difference.update(dif)
-          with open(output_filename, 'a') as output_file:
-            output_file.write(text + '\n')
+          output_file.write(text + '\n')
           continue
       elif all(ord(char) < 128 for char in line):
         continue
