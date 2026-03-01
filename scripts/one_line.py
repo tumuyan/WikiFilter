@@ -244,6 +244,9 @@ def main():
     sorted_dict = OrderedDict(sorted(dictionary.items(), key=lambda x: x[1]))
     n = 0
 
+    # 检测循环引用：value同时也是字典中的key
+    cyclic_refs = []
+
     with open(f"scripts/wiki.opencc.txt", 'w') as output_file, open(f"scripts/wiki2.opencc.txt", 'w') as output_file2:
         output_file2.write("# wiki2.opencc.txt 被剔除的其他字形-简中词条对应表，按简中词条排序。主要剔除了有括号、有空格、纯ASCII字符词条、拼音词条。在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。这些词条基本不会进入输入法候选词，因此基本不会过杀，输出此文件仅供后续检查。\n")
         
@@ -264,10 +267,19 @@ def main():
                 # 不存储与默认转换字形结果相同的词条
                 # if converter1.convert(key) != value and  converter2.convert(key) != value and  converter3.convert(key) != value :
                 if converter1.convert(key) != value:
-                    output_file.write(key+"\t"+value + '\n')
-                    n+=1
+                    # 检测循环引用：value是否也是字典中的key
+                    if value in dictionary:
+                        cyclic_refs.append((key, value, dictionary[value]))
+                    else:
+                        output_file.write(key+"\t"+value + '\n')
+                        n+=1
 
+    # 保存循环引用到单独文件
+    with open(f"scripts/wiki1.opencc.txt", 'w') as cyclic_file:
+        cyclic_file.write("# wiki1.opencc.txt 存在循环/链式引用的词条。格式: key\\tvalue\\tvalue对应的简中。即 key -> value -> 最终简中\n")
+        for key, value, final_value in sorted(cyclic_refs, key=lambda x: x[0]):
+            cyclic_file.write(f"{key}\t{value}\t{final_value}\n")
 
-    print(f'Write OpenCC: {n}/{len(dictionary)}')
+    print(f'Write OpenCC: {n}/{len(dictionary)}, Cyclic refs: {len(cyclic_refs)}')
 if __name__ == "__main__":
     main()

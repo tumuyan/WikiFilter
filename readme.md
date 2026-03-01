@@ -42,6 +42,7 @@
 
 ## 运行过程生成的文件
 - wiki.opencc.txt 根据维基全文的标签信息，生成的其他字形-简中词条对应表，按简中词条排序。不存储与默认简繁转换结果相同的词条。
+- wiki1.opencc.txt 存在循环/链式引用的词条。即 key -> value -> 最终简中。这些词条虽然在wiki.opencc.txt中，但是显然质量较差。
 - wiki2.opencc.txt 被剔除的其他字形-简中词条对应表，按简中词条排序。主要剔除了有括号、有空格、纯ASCII字符词条、拼音词条。在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。这些词条基本不会进入输入法候选词，因此基本不会过杀，输出此文件仅供后续检查。
 - wiki3.opencc.txt 存在冲突的内容（同词条对应了多个简中结果）在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。即使是剔除了有括号、有空格、纯ASCII字符词条、拼音词条，也会出现在这个文件中（用于充分的对照）。需要人工解决这些冲突，添加到Translation.txt或blacklist.opencc.txt中。
 - wiki4.opencc.txt 存在冲突的内容（同词条对应了多个简中结果）在Translation.txt和blacklist.opencc.txt中出现的词条也会出现在这个文件中。用于后期对词条重新检查。
