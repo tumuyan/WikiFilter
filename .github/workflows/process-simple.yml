@@ -5,7 +5,7 @@ name: Process Data (Simple)
 
 on:
   schedule:
-  - cron: "0 2 10,25 * *"
+  - cron: "0 2 8 * *"
   repository_dispatch:
   workflow_dispatch:
     inputs:
@@ -73,32 +73,27 @@ jobs:
         python -m pip install --upgrade pip
         pip install OpenCC
     
-    - name: Get Date Version 1
-      if: github.event.inputs.source_tag == ''
+    - name: Get Wiki Version
+      id: get_version
       run: |
-        current_date=$(date +%Y-%m-%d)
-        current_year=$(date +%Y -d "$current_date")
-        current_month=$(date +%m -d "$current_date")
-        current_day=$(date +%d -d "$current_date")
-        
-        if [ $current_day -gt 21 ]; then
-            VERSION="${current_year}${current_month}20"
+        if [ -n "${{ github.event.inputs.source_tag }}" ]; then
+          # 用户指定版本，不进行回退检查
+          VERSION="${{ github.event.inputs.source_tag }}"
+          WIKI_FALLBACK=""
+          echo "使用指定版本: $VERSION"
         else
-            VERSION="${current_year}${current_month}01"
+          # 自动计算版本，检查文件可用性
+          eval $(python3 scripts/get-wiki-version.py --check-file)
+          VERSION="$WIKI_VERSION"
+          if [ -n "$WIKI_FALLBACK" ]; then
+            echo "::warning::使用回退版本: $VERSION"
+          fi
         fi
+        
         echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-    
-    - name: Get Date Version 2
-      if: github.event.inputs.source_tag != ''
-      run: |
-        VERSION="${{github.event.inputs.source_tag}}"
-        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-    
-    - name: Set Date Version
-      id: date_version
-      run: |
-        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-        echo "版本号为: $VERSION"
+        echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "WIKI_FALLBACK=$WIKI_FALLBACK" >> "$GITHUB_ENV"
+        echo "版本号: $VERSION"
     
     - name: Cache dump files
       id: cache-dump

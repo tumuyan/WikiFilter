@@ -18,21 +18,16 @@ echo "词库名: $DICT_NAME"
 
 cd "$PROJECT_ROOT"
 
-# 如果没有提供版本号，自动计算
+# 如果没有提供版本号，使用 Python 脚本自动计算（带文件可用性检查）
 if [ -z "$VERSION" ]; then
-    current_date=$(date +%Y-%m-%d)
-    current_year=$(date +%Y -d "$current_date")
-    current_month=$(date +%m -d "$current_date")
-    current_day=$(date +%d -d "$current_date")
-    
-    if [ $current_day -gt 21 ]; then
-        VERSION="${current_year}${current_month}20"
-    else
-        VERSION="${current_year}${current_month}01"
-    fi
+    eval $(python3 "$SCRIPT_DIR/get-wiki-version.py" --check-file)
+    VERSION="$WIKI_VERSION"
 fi
 
 echo "版本: $VERSION"
+if [ -n "$WIKI_FALLBACK" ]; then
+    echo "注意: 使用了回退版本"
+fi
 
 # 检查词库文件是否已存在
 if [ -f "$DICT_NAME" ]; then
