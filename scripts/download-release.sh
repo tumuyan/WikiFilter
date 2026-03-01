@@ -2,15 +2,35 @@
 
 # 下载 GitHub Release 文件的脚本
 # 用法: ./download-release.sh [url]
-# 示例: ./download-release.sh https://github.com/user/repo/releases/download/tag/file.tar.gz
+# 无参数时自动获取最新 release，使用 Python 计算版本日期
 
 set -e
 
-# 默认下载路径
-DEFAULT_URL="https://github.com/tumuyan/WikiFilter/releases/download/pre-20240501/zhwiki-20260201-extracted.tar.gz"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="tumuyan/WikiFilter"
 
-# 接收参数或使用默认值
-DOWNLOAD_URL="${1:-$DEFAULT_URL}"
+# 获取下载 URL
+if [ -n "$1" ]; then
+    # 使用用户提供的 URL
+    DOWNLOAD_URL="$1"
+else
+    # 自动获取最新 release
+    echo "正在获取最新 Release..."
+
+    # 使用 Python 获取版本日期
+    VERSION_OUTPUT=$(python3 "$SCRIPT_DIR/get-wiki-version.py")
+    VERSION=$(echo "$VERSION_OUTPUT" | grep "^WIKI_VERSION=" | cut -d'=' -f2)
+    echo "当前 Wiki dump 版本: $VERSION"
+
+    # 通过 GitHub API 获取最新 release 的下载链接
+    API_URL="https://api.github.com/repos/$REPO/releases/latest"
+    DOWNLOAD_URL=$(curl -s "$API_URL" | grep "browser_download_url.*tar.gz" | head -1 | cut -d'"' -f4)
+
+    if [ -z "$DOWNLOAD_URL" ]; then
+        echo "错误: 无法获取下载链接"
+        exit 1
+    fi
+fi
 
 echo "Download URL: $DOWNLOAD_URL"
 
