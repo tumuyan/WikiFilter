@@ -1,16 +1,15 @@
 import sys
 import os
 import re
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import opencc
 
 from wiki_utils import split_article
- 
 
 
 # 逐行读取指定文件。文件分为多个部分，每个部分都以<doc 开头，以</doc>结尾。读取一个部分后，如果这个部分的长度大于指定值，则把缓存的内容中的换行改为空格，作为新的一行内容输出到指定文件
 
-def wikiextractor_xml2txt(filename, output_filename, min_length):
+def wikiextractor_xml2txt(filename, output_filename, min_length, source_pool=None, key_sources=None):
   """
   逐行读取指定文件，处理符合条件的部分，并输出到指定文件。
 
@@ -18,6 +17,8 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
     filename: 要读取的文件名。
     output_filename: 处理后的内容输出到的文件名。
     min_length: 部分的最小长度。
+    source_pool: 原文池字典 {hash: 原文内容}，用于去重存储。
+    key_sources: 词条来源映射 {key: {hash1, hash2, ...}}，记录每个词条对应的原文hash。
 
   Returns:
     一个元组，包含总共处理了多少个部分，最终输出了多少个部分，比例是多少。
@@ -46,7 +47,8 @@ def wikiextractor_xml2txt(filename, output_filename, min_length):
           # 统一符号
           output_line = re.sub(r"[・･ᐧ]", "·", output_line)
 
-          dic, text, dif = split_article(output_line)
+          # 直接传入 source_pool 和 key_sources，在函数内部更新
+          dic, text, dif = split_article(output_line, source_pool, key_sources)
           dictionary.update(dic)
           difference.update(dif)
           output_file.write(text + '\n')
@@ -79,11 +81,17 @@ def main():
     min_length = int(sys.argv[2])
     dictionary = {}
     difference = set()
+    # 原文池：hash -> 原文内容，去重存储
+    source_pool = {}
+    # 词条来源映射：key -> {hash1, hash2, ...}，支持同一词条对应多个原文
+    key_sources = defaultdict(set)
+
     for filename in os.listdir(folder_path):
         file_path = os.path.join(folder_path, filename)
         if os.path.isfile(file_path) and not "." in filename:
             output_filename = os.path.splitext(file_path)[0] + '.txt'
-            dic, dif, total_sections, output_sections, percentage = wikiextractor_xml2txt(file_path, output_filename, min_length)
+            dic, dif, total_sections, output_sections, percentage = wikiextractor_xml2txt(
+                file_path, output_filename, min_length, source_pool, key_sources)
             print(f'Input: {total_sections}, Output: {output_sections}, Percentage: {percentage}%, dict: {len(dic)} File: {filename}\n')
             dictionary.update(dic)
             difference.update(dif)
@@ -173,11 +181,19 @@ def main():
                         output_file.write(key+"\t"+value + '\n')
                         n+=1
 
-    # 保存循环引用到单独文件
+    # 保存循环引用到单独文件（带原文信息）
     with open(f"scripts/wiki1.opencc.txt", 'w') as cyclic_file:
         cyclic_file.write("# wiki1.opencc.txt 存在循环/链式引用的词条。格式: key\\tvalue\\tvalue对应的简中。即 key -> value -> 最终简中\n")
+        cyclic_file.write("# 随后是对应的原始片段\n\n")
         for key, value, final_value in sorted(cyclic_refs, key=lambda x: x[0]):
             cyclic_file.write(f"{key}\t{value}\t{final_value}\n")
+            # 收集该词条关联的所有原文 hash，避免重复
+            written_hashes = set()
+            for src_hash in key_sources.get(key, set()) | key_sources.get(value, set()):
+                if src_hash not in written_hashes and src_hash in source_pool:
+                    cyclic_file.write(f"  {source_pool[src_hash]}\n")
+                    written_hashes.add(src_hash)
+            cyclic_file.write("\n")
 
     print(f'Write OpenCC: {n}/{len(dictionary)}, Cyclic refs: {len(cyclic_refs)}')
 if __name__ == "__main__":

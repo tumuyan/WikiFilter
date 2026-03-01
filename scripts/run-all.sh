@@ -96,7 +96,6 @@ if [ ! -f "extracted/zhwiki.txt" ]; then
     echo -e "\n[4/8] 转换为单行格式..."
     $PYTHON scripts/one_line.py extracted 100
     echo "生成 extracted/zhwiki.txt"
-    $PYTHON scripts/one_line_sources.py extracted  scripts/wiki1.opencc.txt scripts/wiki.opencc.txt  
 else
     echo -e "\n[4/8] 单行格式文件已存在，跳过转换"
 fi
