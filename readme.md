@@ -33,6 +33,7 @@
 ## 仓库结构
 - WikiFilter/WikiFilter.cpp 统计词频的C++源码
 - scripts/one_line.py 把WikiExtract结果处理为每篇内容为一行，同时输出其他语言-简中的opencc的配置文件
+- scripts/one_line_source.py 使用one_line.py输出的数据，再次从Wiki原文中提取对应原文，以便分析数据不妥之处
 - scripts/merge_csv.py 把多个csv文件合并为1个，同时输出无词频的txt文件（可根据阈值剔除词频低于一定值的词条）
 - scripts/blacklist.opencc.txt 输出opencc配置文件时，如词条在词文件中出现，则跳过。一方面需要排除不必要的转换、错误的转换，另一方面部分词条只需要逐字转换即可，没有必要走opencc的词条转换。
 - scripts/blacklist2.opencc.txt 由于容易产生歧义而不建议转换的词条，或者暂时不知如何处置的词条
