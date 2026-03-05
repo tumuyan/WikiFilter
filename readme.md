@@ -39,6 +39,7 @@
 - scripts/Translation.txt 预设的opencc数据文件，精选其他语言-简中。注意其中使用了一个opencc的特性，opencc的词条对照表使用tab分割内容，并且不处理空格后的内容。此文件包含了形如`國樂團{tab}民乐团{space}民族乐团`的词条，定义了`國樂團`转换为`民乐团`，而`民族乐团`作为注释，提示在这里定义了转换惯例，并且不影响正常转换的结果。
 - scripts/a2s.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt
 - scripts/a2s2.json 预设的opencc配置文件，其他语言-简中，包含Translation.txt和wiki.opencc.txt
+- .codebuddy/skills/ime-dict-evaluator 评估词条可用性的skill。使用提示词 `评估 input.txt 的词条，结果保存到 output.csv`
 
 ## 运行过程生成的文件
 - wiki.opencc.txt 根据维基全文的标签信息，生成的其他字形-简中词条对应表，按简中词条排序。不存储与默认简繁转换结果相同的词条。
