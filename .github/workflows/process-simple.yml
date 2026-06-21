@@ -75,16 +75,13 @@ jobs:
 
     - name: Prepare OpenCC dictionaries
       run: |
-        OPENCC_DIR=/usr/share/opencc/
+        SCRIPT_DIR=scripts
         echo "下载 OpenCC 字典..."
         wget -q -O /tmp/TSPhrases.txt https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/TSPhrases.txt
         wget -q -O /tmp/TSCharacters.txt https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/TSCharacters.txt
         echo "转换为 ocd2 格式..."
         opencc_dict -i /tmp/TSPhrases.txt -o "$OPENCC_DIR/TSPhrases.ocd2" -f text -t ocd2
         opencc_dict -i /tmp/TSCharacters.txt -o "$OPENCC_DIR/TSCharacters.ocd2" -f text -t ocd2
-        echo "复制文本文件..."
-        cp /tmp/TSPhrases.txt "$OPENCC_DIR/"
-        cp /tmp/TSCharacters.txt "$OPENCC_DIR/"
         rm -f /tmp/TSPhrases.txt /tmp/TSCharacters.txt
         echo "完成"
 
