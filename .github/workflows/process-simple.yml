@@ -69,7 +69,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        sudo apt-get -y install wget p7zip-full opencc
+        sudo apt-get -y install wget p7zip-full opencc libicu-dev
         python -m pip install --upgrade pip
         pip install OpenCC
     
@@ -510,3 +510,15 @@ jobs:
         name: wiki_result_chs_dict_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_${{github.event.inputs.dict_tag}}
         path: |
           text/AA/filted.chs.txt
+
+    - name: 流行词生成
+      run: |
+        cd scripts
+        ./liuxingci.sh
+
+    - name: 上传流行词
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: pinyin_simp_liuxing
+        path: |
+          scripts/imewlconverter/pinyin_simp_liuxing.dict.yaml   

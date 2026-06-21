@@ -377,3 +377,5 @@ dict.*.txt
 dict.txt
 extracted/*
 text/*
+scripts/imewlconverter/*
+
