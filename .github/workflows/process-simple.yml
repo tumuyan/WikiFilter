@@ -6,6 +6,7 @@ name: Process Data (Simple)
 on:
   push:
     branches:
+    - master
     - main
   schedule:
   - cron: "0 2 8 * *"
@@ -530,11 +531,18 @@ jobs:
       run: |
         cd scripts
         ./generate_liuxing.sh
+        # 添加到当前 shell 环境变量
+        export DOTNET_ROOT="$HOME/.dotnet"
+        export PATH="$DOTNET_ROOT:$PATH"
+        cd imewlconverter
+        wget 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
+        ./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin | grep -v 'Generating codes'
+        ./fix_yaml.sh liuxing "网络流行新词细胞词库"
 
     - name: Generate Wiki Yaml
       continue-on-error: true
       run: |
-        cd scripts
+        cd scripts/imewlconverter
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         ./ImeWlConverterCmd text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin | grep -v 'Generating codes\.\.\.'
@@ -543,7 +551,7 @@ jobs:
     - name: Generate MoeGirl Yaml
       continue-on-error: true
       run: |
-        cd scripts
+        cd scripts/imewlconverter
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         wget https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt

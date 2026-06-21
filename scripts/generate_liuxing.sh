@@ -50,37 +50,3 @@ chmod +x /tmp/dotnet-install.sh
 # 安装 .NET 10.0 SDK（包含运行时）
 /tmp/dotnet-install.sh --channel 10.0 --install-dir "$HOME/.dotnet"
 
-# 添加到当前 shell 环境变量
-export DOTNET_ROOT="$HOME/.dotnet"
-export PATH="$DOTNET_ROOT:$PATH"
-
-cd imewlconverter
-
-wget 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
-
-./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin | grep -v 'Generating codes\.\.\.'
-
-python3 ../optimize_dict.py  liuxing.yaml --fix
-
-# 为优化后的词库添加文件头
-HEADER="""# Rime dictionary
-# encoding: utf-8
-#
-# pinyin_simp_liuxing.dict.yaml
-#
-# 网络流行新词细胞词库
-#
----
-name: pinyin_simp_liuxing
-version: \"$(date +%Y%m%d)\"
-sort: by_weight
-use_preset_vocabulary: false
-...
-"""
-
-# 将文件头写入临时文件，再拼接词库内容
-echo "$HEADER" > liuxing_optimized_header.yaml
-cat liuxing_optimized.yaml >> liuxing_optimized_header.yaml
-mv liuxing_optimized_header.yaml pinyin_simp_liuxing.dict.yaml
-
-echo "finish dump pinyin_simp_liuxing.dict.yaml"
