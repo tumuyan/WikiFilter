@@ -379,3 +379,4 @@ extracted/*
 text/*
 scripts/imewlconverter/*
 
+*.scel
