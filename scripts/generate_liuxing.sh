@@ -16,21 +16,12 @@ case "$ARCH" in
 esac
 
 echo "==> 检测到架构: $ARCH -> $SUFFIX"
-echo "==> 获取最新发行版信息 ..."
-LATEST_JSON="$(curl -sfL "https://api.github.com/repos/$REPO/releases/latest")"
 
-# 根据架构查找对应的下载链接
-DOWNLOAD_URL="$(echo "$LATEST_JSON" | grep -oP '"browser_download_url":\s*"[^"]*'"$SUFFIX"'[^"]*\.tar\.gz"' | grep -oP 'https://[^"]+')"
-
-if [[ -z "$DOWNLOAD_URL" ]]; then
-  echo "错误：未找到 $SUFFIX 的 tar.gz 下载链接" >&2
-  exit 1
-fi
-
+RELEASE_URL="https://github.com/$REPO/releases/latest/download/imewlconverter_${SUFFIX}.tar.gz"
 TMP_FILE="/tmp/imewlconverter_${SUFFIX}.tar.gz"
 
-echo "==> 下载 $(basename "$DOWNLOAD_URL") ..."
-curl -fSL "$DOWNLOAD_URL" -o "$TMP_FILE"
+echo "==> 下载 imewlconverter_${SUFFIX}.tar.gz ..."
+curl -fSL --retry 3 --retry-delay 2 "$RELEASE_URL" -o "$TMP_FILE"
 
 echo "==> 解压缩到 $OUTPUT_DIR ..."
 mkdir -p "$OUTPUT_DIR"
