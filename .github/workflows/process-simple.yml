@@ -525,14 +525,34 @@ jobs:
         path: |
           text/AA/filted.chs.txt
 
-    - name: 流行词生成
+    - name: Generate Liuxing Yaml
+      continue-on-error: true
       run: |
         cd scripts
-        ./liuxingci.sh
+        ./generate_liuxing.sh
 
-    - name: 上传流行词
+    - name: Generate Wiki Yaml
+      continue-on-error: true
+      run: |
+        cd scripts
+        export DOTNET_ROOT="$HOME/.dotnet"
+        export PATH="$DOTNET_ROOT:$PATH"
+        ./ImeWlConverterCmd text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin | grep -v 'Generating codes\.\.\.'
+        ./fix_yaml.sh wiki "维基百科词库"
+
+    - name: Generate MoeGirl Yaml
+      continue-on-error: true
+      run: |
+        cd scripts
+        export DOTNET_ROOT="$HOME/.dotnet"
+        export PATH="$DOTNET_ROOT:$PATH"
+        wget https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt
+        ./ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin | grep -v 'Generating codes\.\.\.'
+        ./fix_yaml.sh moe "萌娘百科词库"
+
+    - name: Upload Rime Dict
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: pinyin_simp_liuxing
+        name: rime_pinyin_dict
         path: |
-          scripts/imewlconverter/pinyin_simp_liuxing.dict.yaml   
+          scripts/imewlconverter/*.dict.yaml   

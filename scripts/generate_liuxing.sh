@@ -58,7 +58,7 @@ cd imewlconverter
 
 wget 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
 
-./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin
+./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin | grep -v 'Generating codes\.\.\.'
 
 python3 ../optimize_dict.py  liuxing.yaml --fix
 
