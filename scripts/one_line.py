@@ -1,10 +1,19 @@
 import sys
 import os
 import re
+import shutil
 from collections import OrderedDict, defaultdict
 import opencc
 
 from wiki_utils import split_article
+
+# 复制 OpenCC 配置文件到系统目录
+OPENCC_DIR = '/usr/share/opencc/'
+for cfg_file in ['a2s.json', 'Translation.txt']:
+    src = os.path.join(os.path.dirname(__file__), cfg_file)
+    dst = os.path.join(OPENCC_DIR, cfg_file)
+    if os.path.exists(src):
+        shutil.copy(src, dst)
 
 
 # 逐行读取指定文件。文件分为多个部分，每个部分都以<doc 开头，以</doc>结尾。读取一个部分后，如果这个部分的长度大于指定值，则把缓存的内容中的换行改为空格，作为新的一行内容输出到指定文件
@@ -158,7 +167,8 @@ def main():
         output_file2.write("# wiki2.opencc.txt 被剔除的其他字形-简中词条对应表，按简中词条排序。主要剔除了有括号、有空格、纯ASCII字符词条、拼音词条。在Translation.txt和blacklist.opencc.txt中出现的词条不会出现在这个文件中。这些词条基本不会进入输入法候选词，因此基本不会过杀，输出此文件仅供后续检查。\n")
         
         # 创建 OpenCC 转换器实例
-        converter1 = opencc.OpenCC('t2s.json')  # 繁体转简体
+        # converter1 = opencc.OpenCC('t2s.json')  # 繁体转简体
+        converter1 = opencc.OpenCC('/usr/share/opencc/a2s.json') 
         converter2 = opencc.OpenCC('tw2s.json')  # 台湾正体转大陆简体
         converter3 = opencc.OpenCC('hk2s.json')  # 香港字形转大陆简体
         

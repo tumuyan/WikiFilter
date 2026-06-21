@@ -17,7 +17,7 @@ def merge_csv(input_folder, output_filename,input_suffix,output_filter):
                         
                         if '\t' in line:
                             # 获取 key 和值
-                            k, value = line.split('\t')
+                            k, value = line.rsplit('\t', maxsplit=1)
                             v = int(value)
                             if k not in key_counts:
                                 key_counts[k] = v
