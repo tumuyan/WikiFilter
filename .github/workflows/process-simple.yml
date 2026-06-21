@@ -535,7 +535,7 @@ jobs:
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         cd imewlconverter
-        wget -nv 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
+        wget -nv --retry-connrefused --tries=3 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
         ./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin 2>&1 | grep -v 'Generating codes' || true
         ../fix_yaml.sh liuxing "网络流行新词细胞词库"
 
@@ -545,13 +545,13 @@ jobs:
         cd scripts/imewlconverter
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
-        ./ImeWlConverterCmd ../text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin 2>&1 | grep -v 'Generating codes' || true
+        ./ImeWlConverterCmd ../../text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin 2>&1 | grep -v 'Generating codes' || true
         ../fix_yaml.sh wiki "维基百科词库"
 
     - name: Generate MoeGirl Yaml
       continue-on-error: true
       run: |
-        cd scripts
+        cd scripts/imewlconverter
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         wget -nv https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt
@@ -566,7 +566,7 @@ jobs:
           scripts/imewlconverter/*.dict.yaml   
 
     - name: Upload Rime Dict to Release
-      if: env.upload-release-tag != ''
+      # if: env.upload-release-tag != ''
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ env.upload-release-tag }}
