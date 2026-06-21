@@ -534,28 +534,27 @@ jobs:
         # 添加到当前 shell 环境变量
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
-        cd imewlconverter
         wget 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
-        ./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin | grep -v 'Generating codes'
+        ./imewlconverter/ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin 2>&1 | grep -v 'Generating codes'
         ./fix_yaml.sh liuxing "网络流行新词细胞词库"
 
     - name: Generate Wiki Yaml
       continue-on-error: true
       run: |
-        cd scripts/imewlconverter
+        cd scripts
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
-        ./ImeWlConverterCmd text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin | grep -v 'Generating codes\.\.\.'
+        ./imewlconverter/ImeWlConverterCmd ../text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin 2>&1 | grep -v 'Generating codes\.\.\.'
         ./fix_yaml.sh wiki "维基百科词库"
 
     - name: Generate MoeGirl Yaml
       continue-on-error: true
       run: |
-        cd scripts/imewlconverter
+        cd scripts
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         wget https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt
-        ./ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin | grep -v 'Generating codes\.\.\.'
+        ./imewlconverter/ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes\.\.\.'
         ./fix_yaml.sh moe "萌娘百科词库"
 
     - name: Upload Rime Dict
@@ -564,3 +563,17 @@ jobs:
         name: rime_pinyin_dict
         path: |
           scripts/imewlconverter/*.dict.yaml   
+
+    - name: Upload Rime Dict to Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ env.upload-release-tag }}
+        name: Wiki Cache
+        body: |
+          ## Wiki 提取数据备份
+          - 版本: ${{ env.VERSION }}
+          - 用于恢复 CI 缓存，避免重复下载
+          - 以及分享网络流行新词/维基百科/萌娘百科词库
+        files: scripts/imewlconverter/*.dict.yaml
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
