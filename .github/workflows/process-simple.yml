@@ -83,6 +83,7 @@ jobs:
         opencc_dict -i /tmp/TSPhrases.txt -o "$OPENCC_DIR/TSPhrases.ocd2" -f text -t ocd2
         opencc_dict -i /tmp/TSCharacters.txt -o "$OPENCC_DIR/TSCharacters.ocd2" -f text -t ocd2
         rm -f /tmp/TSPhrases.txt /tmp/TSCharacters.txt
+        ls -lh "$OPENCC_DIR/*.ocd2"
         echo "完成"
 
     - name: Get Wiki Version
