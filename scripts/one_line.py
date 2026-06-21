@@ -7,12 +7,17 @@ import opencc
 
 from wiki_utils import split_article
 
-# 复制 OpenCC 配置文件到系统目录
-OPENCC_DIR = '/usr/share/opencc/'
+# 复制 OpenCC 配置文件，自动选择可写入的目录
+OPENCC_SYSTEM_DIR = '/usr/share/opencc/'
+if os.access(OPENCC_SYSTEM_DIR, os.W_OK):
+    OPENCC_DIR = OPENCC_SYSTEM_DIR
+else:
+    OPENCC_DIR = os.path.expanduser('~/.config/opencc/')
+    os.makedirs(OPENCC_DIR, exist_ok=True)
 for cfg_file in ['a2s.json', 'Translation.txt']:
     src = os.path.join(os.path.dirname(__file__), cfg_file)
     dst = os.path.join(OPENCC_DIR, cfg_file)
-    if os.path.exists(src):
+    if os.path.exists(src) and not os.path.exists(dst):
         shutil.copy(src, dst)
 
 
@@ -168,7 +173,7 @@ def main():
         
         # 创建 OpenCC 转换器实例
         # converter1 = opencc.OpenCC('t2s.json')  # 繁体转简体
-        converter1 = opencc.OpenCC('/usr/share/opencc/a2s.json') 
+        converter1 = opencc.OpenCC(os.path.join(OPENCC_DIR, 'a2s.json')) 
         converter2 = opencc.OpenCC('tw2s.json')  # 台湾正体转大陆简体
         converter3 = opencc.OpenCC('hk2s.json')  # 香港字形转大陆简体
         
