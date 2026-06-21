@@ -81,7 +81,7 @@ jobs:
         echo "转换为 ocd2 格式..."
         opencc_dict -i scripts/TSPhrases.txt -o scripts/TSPhrases.ocd2 -f text -t ocd2 || true
         opencc_dict -i scripts/TSCharacters.txt -o scripts/TSCharacters.ocd2 -f text -t ocd2 || true
-        ls -lh "scripts/*.ocd2"
+        ls -lh scripts/TS*
         echo "完成"
 
     - name: Get Wiki Version
