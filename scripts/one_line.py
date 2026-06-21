@@ -10,8 +10,8 @@ from wiki_utils import split_article
 
 # OpenCC 字典文件下载地址
 OPENCC_DICT_URLS = {
-    'STPhrases.txt': 'https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/STPhrases.txt',
-    'STCharacters.txt': 'https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/STCharacters.txt',
+    'TSPhrases.txt': 'https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/TSPhrases.txt',
+    'TSCharacters.txt': 'https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/TSCharacters.txt',
 }
 
 # 复制 OpenCC 配置文件，自动选择可写入的目录
