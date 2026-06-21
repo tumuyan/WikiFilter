@@ -4,8 +4,15 @@ import re
 import shutil
 from collections import OrderedDict, defaultdict
 import opencc
+import urllib.request
 
 from wiki_utils import split_article
+
+# OpenCC 字典文件下载地址
+OPENCC_DICT_URLS = {
+    'STPhrases.txt': 'https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/STPhrases.txt',
+    'STCharacters.txt': 'https://raw.githubusercontent.com/BYVoid/OpenCC/refs/heads/master/data/dictionary/STCharacters.txt',
+}
 
 # 复制 OpenCC 配置文件，自动选择可写入的目录
 OPENCC_SYSTEM_DIR = '/usr/share/opencc/'
@@ -14,8 +21,22 @@ if os.access(OPENCC_SYSTEM_DIR, os.W_OK):
 else:
     OPENCC_DIR = os.path.expanduser('~/.config/opencc/')
     os.makedirs(OPENCC_DIR, exist_ok=True)
+
+# 下载并复制运行时需要的 OpenCC 字典文件
+script_dir = os.path.dirname(__file__)
+for dict_file, url in OPENCC_DICT_URLS.items():
+    src = os.path.join(script_dir, dict_file)
+    dst = os.path.join(OPENCC_DIR, dict_file)
+    if not os.path.exists(dst):
+        # 下载到本地临时文件
+        if not os.path.exists(src):
+            print(f'下载 OpenCC 字典: {dict_file}')
+            urllib.request.urlretrieve(url, src)
+        # 复制到 OpenCC 配置目录
+        shutil.copy(src, dst)
+
 for cfg_file in ['a2s.json', 'Translation.txt']:
-    src = os.path.join(os.path.dirname(__file__), cfg_file)
+    src = os.path.join(script_dir, cfg_file)
     dst = os.path.join(OPENCC_DIR, cfg_file)
     if os.path.exists(src) and not os.path.exists(dst):
         shutil.copy(src, dst)
