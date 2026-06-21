@@ -14,7 +14,7 @@ if os.access(OPENCC_SYSTEM_DIR, os.W_OK):
 else:
     OPENCC_DIR = os.path.expanduser('~/.config/opencc/')
     os.makedirs(OPENCC_DIR, exist_ok=True)
-for cfg_file in ['a2s.json', 'Translation.txt', 'TSPhrases.txt', 'TSCharacters.txt', 'TSPhrases.ocd2', 'TSCharacters.ocd2']:
+for cfg_file in ['a2s.json', 'Translation.txt', 'TSPhrases.ocd2', 'TSCharacters.ocd2']:
     src = os.path.join(os.path.dirname(__file__), cfg_file)
     dst = os.path.join(OPENCC_DIR, cfg_file)
     if os.path.exists(src) and not os.path.exists(dst):
