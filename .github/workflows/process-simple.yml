@@ -537,7 +537,7 @@ jobs:
         cd imewlconverter
         wget -nv 'https://pinyin.sogou.com/d/dict/download_cell.php?id=4&name=%E7%BD%91%E7%BB%9C%E6%B5%81%E8%A1%8C%E6%96%B0%E8%AF%8D&f=detail' -O liuxing.scel
         ./ImeWlConverterCmd  liuxing.scel  -i scel -o rime -O liuxing.yaml -t pinyin 2>&1 | grep -v 'Generating codes'
-        ./fix_yaml.sh liuxing "网络流行新词细胞词库"
+        ../fix_yaml.sh liuxing "网络流行新词细胞词库"
 
     - name: Generate Wiki Yaml
       continue-on-error: true
@@ -545,8 +545,8 @@ jobs:
         cd scripts/imewlconverter
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
-        ./ImeWlConverterCmd ../text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin 2>&1 | grep -v 'Generating codes\.\.\.'
-        ./fix_yaml.sh wiki "维基百科词库"
+        ./ImeWlConverterCmd ../text/AA/filted.chs.txt -i   word -o rime -O "wiki.yaml" -t pinyin 2>&1 | grep -v 'Generating codes'
+        ../fix_yaml.sh wiki "维基百科词库"
 
     - name: Generate MoeGirl Yaml
       continue-on-error: true
@@ -555,8 +555,8 @@ jobs:
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         wget -nv https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt
-        ./imewlconverter/ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes\.\.\.'
-        ./fix_yaml.sh moe "萌娘百科词库"
+        ./imewlconverter/ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes'
+        ../fix_yaml.sh moe "萌娘百科词库"
 
     - name: Upload Rime Dict
       uses: actions/upload-artifact@v4.3.3
