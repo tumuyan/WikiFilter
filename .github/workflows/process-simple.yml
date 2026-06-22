@@ -566,10 +566,10 @@ jobs:
           scripts/imewlconverter/*.dict.yaml   
 
     - name: Upload Rime Dict to Release
-      # if: env.upload-release-tag != ''
+      if: env.release-tag != ''
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ env.upload-release-tag }}
+        tag_name: ${{ env.release-tag }}
         name: Wiki Cache
         body: |
           ## Wiki 提取数据备份
