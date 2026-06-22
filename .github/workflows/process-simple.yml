@@ -1,5 +1,5 @@
 # This workflow runs all processing steps in a single container
-# No parallel processing, single split only
+# No parallel processing, no file splitting
 
 name: Process Data (Simple)
 
@@ -38,15 +38,9 @@ on:
         description: '维基全文的版本'
         required: false
         default: ''
-      split_count:
-        description: '分片数量'
-        required: true
-        type: number
-        default: 1
 
 env:
   DICT_NAME: ${{ github.event.inputs.dict || 'dict.txt' }}
-  SPLIT_COUNT: ${{ github.event.inputs.split_count || '1' }}
 
 permissions:
   contents: write
@@ -444,27 +438,23 @@ jobs:
       run: |
         echo "=== 开始过滤 ==="
         echo "词库: ${{ env.DICT_NAME }}"
-        echo "输入目录: text/AA"
-        echo "分片数量: ${{ env.SPLIT_COUNT }}"
-        
-        for i in $(seq -f "%02g" 0 $((${{ env.SPLIT_COUNT }} - 1))); do
-          INPUT_FILE="text/AA/wiki_${i}.txt"
-          
-          if [ ! -f "$INPUT_FILE" ]; then
-            echo "跳过不存在的文件: $INPUT_FILE"
-            continue
-          fi
-          
-          # 跳过空文件
-          if [ ! -s "$INPUT_FILE" ]; then
-            echo "跳过空文件: $INPUT_FILE"
-            continue
-          fi
-          
-          echo "处理: $INPUT_FILE"
-          ./WikiFilter/WikiFilter "${{ env.DICT_NAME }}" "$INPUT_FILE" 1
-        done
-        
+        echo "输入文件: text/AA/wiki_00.txt"
+
+        INPUT_FILE="text/AA/wiki_00.txt"
+
+        if [ ! -f "$INPUT_FILE" ]; then
+          echo "错误: 文件不存在: $INPUT_FILE"
+          exit 1
+        fi
+
+        if [ ! -s "$INPUT_FILE" ]; then
+          echo "错误: 文件为空: $INPUT_FILE"
+          exit 1
+        fi
+
+        echo "处理: $INPUT_FILE"
+        ./WikiFilter/WikiFilter "${{ env.DICT_NAME }}" "$INPUT_FILE" 1
+
         echo "=== 过滤完成 ==="
         ls -lh text/AA/*.csv 2>/dev/null || echo "没有生成 CSV 文件"
     
@@ -472,7 +462,7 @@ jobs:
       run: |
         source_dir="text/AA/"
         
-        echo "=== 合并结果 ==="
+        echo "=== 处理结果 ==="
         ls -lh $source_dir
         
         # 移动 opencc 配置文件
@@ -481,24 +471,20 @@ jobs:
         # 删除原始文件
         rm -f $source_dir/*.raw.txt 2>/dev/null || true
         
-        # 第一次合并
-        echo "第一次合并 (filted.csv)..."
-        python scripts/merge_csv.py $source_dir merge 0 filted.csv
-        
-        # 删除中间文件
-        rm -f $source_dir/*.txt.filted.csv 2>/dev/null || true
+        # 重命名过滤结果为 merge.csv（供后续 OpenCC 使用）
+        mv $source_dir/wiki_00.txt.filted.csv $source_dir/merge.csv 2>/dev/null || true
         
         # OpenCC 转换
         if [ -f "$source_dir/merge.csv" ] && [ -f "scripts/a2s2.json" ]; then
           echo "OpenCC 转换..."
           opencc -i "$source_dir/merge.csv" -o "$source_dir/merge.chs.csv" -c scripts/a2s2.json
           
-          # 第二次合并
-          echo "第二次合并 (chs.csv)..."
+          # 词频过滤
+          echo "词频过滤 (阈值 8)..."
           python scripts/merge_csv.py $source_dir filted.chs 8 merge.chs.csv
         fi
         
-        echo "=== 合并完成 ==="
+        echo "=== 处理完成 ==="
         ls -lh $source_dir/*.csv $source_dir/*.txt $source_dir/*.chs.* $source_dir/*.merge.* 2>/dev/null || true
     
     - name: Upload Result (Step 1)
