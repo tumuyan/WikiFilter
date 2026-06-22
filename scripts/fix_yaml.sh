@@ -3,6 +3,10 @@
 NAME="${1:-wiki}"
 DESC="${2:-维基百科词库}"
 
+if [ ! -s "${NAME}.yaml" ]; then
+    echo "Error: ${NAME}.yaml does not exist or is empty" >&2
+    exit 1
+fi
 
 python3 ../optimize_dict.py  "${NAME}.yaml" --fix
 

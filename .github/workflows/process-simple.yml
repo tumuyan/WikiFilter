@@ -555,7 +555,7 @@ jobs:
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
         wget -nv https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt
-        ./imewlconverter/ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes' || true
+        ./ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes' || true
         ../fix_yaml.sh moe "萌娘百科词库"
 
     - name: Upload Rime Dict
