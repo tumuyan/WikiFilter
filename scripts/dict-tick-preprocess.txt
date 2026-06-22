@@ -4,8 +4,15 @@
 #参数请尽量不要包含空格和非英文
 -blacklist
 	#废词列表文件，允许多个.当缺少废词时，不做废词过滤
+    rime-melt/others/废词-混合词条.txt
+    rime-melt/others/废词-村县镇乡路村縣鎮鄉路.txt
+    rime-melt/others/废词-村县镇乡路村縣鎮鄉路2.txt
+    rime-melt/others/废词-属.txt
+    rime-melt/others/废词.txt
 -blacklist-fix
 	#修复过杀废词
+    rime-melt/others/修复-村县镇乡路村縣鎮鄉路.txt
+    rime-melt/others/修复-混合词条.txt
 -blacklist-regex
 	#废词正则表达式，允许多个。当词条不在废词列表中，但是与此正则表达式匹配时，输出到 graylist 文件中
     .*新干线.+
@@ -13,13 +20,16 @@
     .+街道$
     ^.{1,3}街$
     [^0-9a-zA-Z]{0,2}[0-9a-zA-Z]+
+    [^\\d]((20\\d\\d)|(1\\d\\d\\d))[^\\d]
     .*[^相属云不波眷所莫归]属
     .{2,}[表]$
     [^新][娘]$
     ^[^a-zA-Z][a-zA-Z]+$
     .+的反应$
+    .+委员会$
     .*[-]{2,}.*
 -whitelist
     #不处理的词条所在的文件（只使用词条本身匹配，不比较编码）
+    rime-melt/others/whitelist.txt
 -preprocessed-path
     #加载预处理后的中文词条的路径，使用此参数将直接走opencc处理

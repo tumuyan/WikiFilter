@@ -401,6 +401,11 @@ jobs:
         out-file-path: ''
         extract: false
     
+    - name: Prepare Dict-Tick
+      run: |
+        git clone https://github.com/tumuyan/rime-melt  --depth 1
+        # cp rime-melt/others/*.txt  scripts/
+
     - name: Check & Clean Dict
       id: check-dict
       run: |
@@ -487,19 +492,17 @@ jobs:
         echo "=== 处理完成 ==="
         ls -lh $source_dir/*.csv $source_dir/*.txt $source_dir/*.chs.* $source_dir/*.merge.* 2>/dev/null || true
     
-    - name: Upload Result (Step 1)
+    - name: Upload DictTick Result (Step 1)
       uses: actions/upload-artifact@v4.3.3
       with:
         name: wiki_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_1
         path: |
-         text/AA/*.chs.*
-         text/AA/*.merge.*
-         text/AA/*.csv
+         ${{ env.dict_filename }}.*
     
-    - name: Upload Result (Final)
+    - name: Upload WikiFilter Result (Step 2)
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_all
+        name: wiki_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_2
         path: |
          text/AA/*.chs.*
          text/AA/*.merge.*
@@ -537,10 +540,20 @@ jobs:
     - name: Generate MoeGirl Yaml
       continue-on-error: true
       run: |
-        cd scripts/imewlconverter
+        wget -nv https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O scripts/imewlconverter/moe.txt
+        # 使用 Clean.jar 预处理（从根目录运行确保 rime-melt 路径正确）
+        java -jar Clean.jar -i scripts/imewlconverter/moe.txt -c scripts/dict-tick-preprocess.txt
+        
         export DOTNET_ROOT="$HOME/.dotnet"
         export PATH="$DOTNET_ROOT:$PATH"
-        wget -nv https://github.com/outloudvi/mw2fcitx/releases/latest/download/titles.txt -O moe.txt
+        cd scripts/imewlconverter
+        # 重命名处理结果
+        if [ -f "moe.dict.txt" ]; then
+          mv moe.txt moe.raw.txt
+          mv moe.dict.txt moe.txt
+          echo "Clean.jar 预处理完成"
+        fi
+
         ./ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes' || true
         ../fix_yaml.sh moe "萌娘百科词库"
 
