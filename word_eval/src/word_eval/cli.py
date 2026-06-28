@@ -53,14 +53,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=15,
-        help="每批处理的词条数量（默认: 15，建议 10-20）",
+        default=100,
+        help="每批处理的词条数量（默认: 100）",
     )
     parser.add_argument(
         "--concurrency",
         type=int,
-        default=3,
-        help="并发 API 请求数（默认: 3）",
+        default=1,
+        help="并发 API 请求数（默认: 1）",
     )
     parser.add_argument(
         "--start",

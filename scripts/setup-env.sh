@@ -71,9 +71,11 @@ if [ -n "$PYTHON" ]; then
         # 仍然尝试通过 pip 以 --break-system-packages 安装（静默失败也可接受）
         $PYTHON -m pip install --upgrade pip --break-system-packages 2>/dev/null || true
         $PYTHON -m pip install pytest OpenCC --break-system-packages 2>/dev/null || true
+        $PYTHON -m pip install --break-system-packages -e word_eval/ 2>/dev/null || true
     elif $PYTHON -m pip --version &> /dev/null; then
         $PYTHON -m pip install --upgrade pip
         $PYTHON -m pip install pytest OpenCC
+        $PYTHON -m pip install  -e word_eval
     else
         echo "警告: 未找到 pip，跳过 Python 依赖安装"
     fi
