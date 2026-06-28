@@ -50,6 +50,7 @@
 - **WikiFilter/** — 统计词频的C++源码
   - `WikiFilter.cpp`：主程序，多线程并行过滤维基全文，统计词条在文章中的出现次数
 - **scripts/** — 各类工具脚本
+- **word_eval/** — 输入法词条 LLM 评估工具（Python CLI）
 
 ### 维基百科处理脚本
 - `run-all.sh` — 完整处理流程一键执行：设置环境→构建→下载→提取→过滤→合并
@@ -146,6 +147,97 @@ python scripts/optimize_dict.py my_dict.yaml --delim ,
 
 # 指定输出路径
 python scripts/optimize_dict.py input.dict.yaml --fix -o output.dict.yaml -r report.txt
+```
+
+## 输入法词条 LLM 评估工具（word-eval）
+
+调用 LLM API 对词条进行多维度的适用性评估，判断是否适合列入输入法词典。评估标准来自 `.codebuddy/skills/ime-dict-evaluator/references/evaluation-criteria.md`，评估过程**严格由 LLM 逐条判断**，工具仅编排调用和格式化输出。
+
+### 安装
+
+```bash
+pip install -r word_eval/requirements.txt
+# 安装为系统命令
+pip install --break-system-packages word_eval/
+# 可编辑模式（修改源码即时生效，适合开发）
+pip install --break-system-packages -e word_eval/
+```
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DEEPSEEK_API_KEY` | — | API Key（必需） |
+| `API_BASE_URL` | `https://api.deepseek.com` | API 基础 URL（含完整路径时直接使用） |
+| `API_MODEL` | `deepseek-chat` | 模型名称 |
+| `CNB_TOKEN` | — | CNB 平台认证令牌（使用 CNB API 时设置） |
+| `CNB_REPO_SLUG` | — | CNB 仓库标识（如 `ai-zoomer/fork-from/wiki-filter`） |
+
+### 使用示例
+
+```bash
+# 基本用法：评估文件中的词条，输出到 CSV
+word-eval dict.txt -o result.csv
+
+# 从 stdin 输入
+cat dict.txt | word-eval -o result.csv
+
+# 标准 OpenAI 兼容 API（如 DeepSeek、GPT）
+word-eval input.txt -o out.csv \
+  --api-key sk-xxx \
+  --base-url https://api.deepseek.com \
+  --model deepseek-chat
+
+# CNB IDE API（必须使用 --stream 流式模式）
+word-eval dict.txt -o out.csv \
+  --api-key "$CNB_TOKEN" \
+  --base-url "https://api.cnb.cool/${CNB_REPO_SLUG}/-/ai-ide/v2/chat/completions" \
+  --model "deepseek-v4-flash" \
+  --stream
+
+# 断点续评：中断后重新运行自动从上次位置继续
+word-eval dict.txt -o result.csv --resume
+
+# 指定起始行和限制条数
+word-eval dict.txt -o result.csv --start 50 --limit 100
+
+# 调整批次和并发
+word-eval dict.txt -o result.csv --batch-size 20 --concurrency 5
+
+# cnb测试命令（需先设置 CNB_REPO_SLUG 环境变量）
+echo '笔记本' | word-eval \
+  --api-key "$CNB_TOKEN" \
+  --base-url "https://api.cnb.cool/${CNB_REPO_SLUG}/-/ai-ide/v2/chat/completions" \
+  --model "deepseek-v4-flash" \
+  -o /tmp/test_eval.csv \
+  --stream
+cat /tmp/test_eval.csv
+rm /tmp/test_eval.csv
+```
+
+### 输出格式
+
+CSV 文件（UTF-8 BOM），包含以下字段：
+
+| 字段 | 说明 |
+|------|------|
+| 置信度 | LLM 对评估结果的自信程度（0-10） |
+| 评分 | 词条适用性评分（0-100） |
+| 词条 | 原始词条内容 |
+| 基础分类 | 名词/动词/形容词/成语/专有名词 等 |
+| 其他标签 | `#口语` `#专业术语` `#英语` `#繁体` 等（空格分隔） |
+| 原因 | 简要评估说明 |
+
+### 全部参数
+
+```
+用法: word-eval [input] [-o OUTPUT] [--api-key API_KEY] [--base-url BASE_URL]
+                [--model MODEL] [--batch-size BATCH_SIZE] [--concurrency CONCURRENCY]
+                [--start START] [--limit LIMIT] [--resume] [--no-resume]
+                [--stream] [--log-level {DEBUG,INFO,WARNING,ERROR}]
+
+输入: 文件路径，留空则从 stdin 读取
+输出: 默认为 output.csv
 ```
 
 ## 在 Linux 环境中快速测试

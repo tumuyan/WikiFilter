@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "word-eval"
+version = "0.1.0"
+description = "输入法词条评估工具 - 调用 LLM API 评估词条是否适合列入输入法词典"
+requires-python = ">=3.8"
+dependencies = [
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+word-eval = "word_eval.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+word_eval = ["prompts/*.md"]
