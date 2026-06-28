@@ -9,10 +9,12 @@
     rime-melt/others/废词-村县镇乡路村縣鎮鄉路2.txt
     rime-melt/others/废词-属.txt
     rime-melt/others/废词.txt
+    rime-melt/others/废词-AI.txt
 -blacklist-fix
 	#修复过杀废词
     rime-melt/others/修复-村县镇乡路村縣鎮鄉路.txt
     rime-melt/others/修复-混合词条.txt
+    rime-melt/others/修复-AI.txt
 -blacklist-regex
 	#废词正则表达式，允许多个。当词条不在废词列表中，但是与此正则表达式匹配时，输出到 graylist 文件中
     .*新干线.+

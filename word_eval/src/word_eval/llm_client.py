@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_TIMEOUT = 120
-MAX_RETRIES = 3
+DEFAULT_MAX_RETRIES = 3
 RETRY_DELAY = 2
 
 
@@ -26,9 +26,11 @@ class LLMClient:
         max_concurrency: int = 3,
         timeout: int = DEFAULT_TIMEOUT,
         stream: bool = False,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         self.model = model
         self.stream = stream
+        self._max_retries = max_retries
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
         # 如果 base_url 以 /chat/completions 结尾，截断（SDK 会自动追加）
@@ -67,7 +69,6 @@ class LLMClient:
             model=self.model,
             messages=messages,
             temperature=0.1,
-            max_tokens=4096,
             stream=True,
             stream_options={"include_usage": True},
         )
@@ -99,7 +100,6 @@ class LLMClient:
             model=self.model,
             messages=messages,
             temperature=0.1,
-            max_tokens=4096,
             stream=False,
         )
 
@@ -119,7 +119,7 @@ class LLMClient:
     ) -> dict[str, Any]:
         """带重试和并发控制的 API 调用。"""
         async with self._semaphore:
-            for attempt in range(MAX_RETRIES):
+            for attempt in range(self._max_retries):
                 try:
                     return await self._call_once(system_prompt, user_message)
                 except (APIError, APITimeoutError, APIConnectionError) as e:
@@ -127,10 +127,10 @@ class LLMClient:
                     logger.warning(
                         "API 调用失败 (尝试 %d/%d): %s",
                         attempt + 1,
-                        MAX_RETRIES,
+                        self._max_retries,
                         e,
                     )
-                    if attempt < MAX_RETRIES - 1:
+                    if attempt < self._max_retries - 1:
                         wait = RETRY_DELAY * (attempt + 1)
                         await asyncio.sleep(wait)
                     else:

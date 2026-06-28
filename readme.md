@@ -201,8 +201,14 @@ word-eval dict.txt -o result.csv --resume
 # 指定起始行和限制条数
 word-eval dict.txt -o result.csv --start 50 --limit 100
 
-# 调整批次和并发
-word-eval dict.txt -o result.csv --batch-size 20 --concurrency 5
+# 调整重试次数和并发
+word-eval dict.txt -o result.csv --retry 5 --concurrency 3
+
+# 调试：保存原始 LLM 响应（仅 JSON 解析失败时保存）
+word-eval dict.txt -o result.csv --dump-responses debug.log
+
+# 调试：保存所有原始 LLM 响应
+word-eval dict.txt -o result.csv --dump-responses debug.log --dump-mode always
 
 # cnb测试命令（需先设置 CNB_REPO_SLUG 环境变量）
 echo '笔记本' | word-eval \
@@ -213,6 +219,29 @@ echo '笔记本' | word-eval \
   --stream
 cat /tmp/test_eval.csv
 rm /tmp/test_eval.csv
+
+
+word-eval \
+  --api-key "$CNB_TOKEN" \
+  --base-url "https://api.cnb.cool/${CNB_REPO_SLUG}/-/ai-ide/v2/chat/completions" \
+  --model "deepseek-v4-flash" \
+  -o eval.csv \
+  scripts/imewlconverter/dict.gray.dict.txt \
+  --dump-responses  error.txt \
+  --start 6000 \
+  --stream
+
+
+ word-eval \                                                                                   
+  --api-key "$CNB_TOKEN" \
+  --base-url "https://api.cnb.cool/${CNB_REPO_SLUG}/-/ai-ide/v2/chat/completions" \
+  --model "deepseek-v4-flash" \
+  -o eval.csv \
+  scripts/imewlconverter/dict.dict.txt \ 
+  --dump-responses  error.txt \
+   --concurrency 5 \
+  --stream
+
 ```
 
 ### 输出格式
@@ -233,12 +262,24 @@ CSV 文件（UTF-8 BOM），包含以下字段：
 ```
 用法: word-eval [input] [-o OUTPUT] [--api-key API_KEY] [--base-url BASE_URL]
                 [--model MODEL] [--batch-size BATCH_SIZE] [--concurrency CONCURRENCY]
-                [--start START] [--limit LIMIT] [--resume] [--no-resume]
-                [--stream] [--log-level {DEBUG,INFO,WARNING,ERROR}]
+                [--start START] [--limit LIMIT] [--retry RETRY]
+                [--resume] [--no-resume] [--stream]
+                [--dump-responses FILE] [--dump-mode {always,on-error}]
+                [--log-level {DEBUG,INFO,WARNING,ERROR}]
 
 输入: 文件路径，留空则从 stdin 读取
 输出: 默认为 output.csv
 ```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--batch-size` | 100 | 每批 LLM 请求处理的词条数 |
+| `--concurrency` | 1 | 同时进行的 API 请求数 |
+| `--retry` | 3 | API 请求失败时的重试次数 |
+| `--resume` | 关闭 | 从上次中断位置继续 |
+| `--stream` | — | 使用流式 API（CNB IDE API 必须使用此选项） |
+| `--dump-responses` | — | 原始 LLM 响应保存路径（用于 debug） |
+| `--dump-mode` | `on-error` | `on-error` 仅解析失败时保存，`always` 全部保存 |
 
 ## 在 Linux 环境中快速测试
 ```
