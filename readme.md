@@ -23,7 +23,7 @@
 ## 做什么
 
 以下简述了人工和CI所做的事情
-1. 预处理维基词条标题，上传到仓库 280万->217万
+1. 预处理维基词条标题，上传到仓库 280万->208万
 2. CI获取维基全文xml （12G）
 3. CI运行WikiExtract，从xml提取全文 （2.5G）
 4. CI运行本仓库 one_line.py脚本，合并每篇以`<doc></doc>`包裹的xml内容为每行一篇纯文本，处理过程清除一部分无效文本，并从中提取形如`{H|zh-cn:计算机; zh-sg:电脑; zh-tw:電腦;}`的内容为字典。  
@@ -147,3 +147,14 @@ python scripts/optimize_dict.py my_dict.yaml --delim ,
 # 指定输出路径
 python scripts/optimize_dict.py input.dict.yaml --fix -o output.dict.yaml -r report.txt
 ```
+
+## 在 Linux 环境中快速测试
+```
+# 安装环境
+./scripts/setup-env.sh    
+
+# 运行dict-tick
+wget https://github.com/tumuyan/Dict-Trick/releases/download/latest/Clean.jar
+java -jar Clean.jar -i scripts/imewlconverter/dict.txt -c scripts/dict-tick-preprocess.txt
+
+

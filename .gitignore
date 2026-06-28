@@ -372,7 +372,6 @@ scripts/merge.*
 *.xml.bz2
 WikiFilter/WikiFilter
 Clean.jar
-dict.*.txt
 *.tar.gz
 dict.txt
 extracted/*

@@ -52,12 +52,28 @@ else
     fi
 fi
 
+# 检测是否为 externally-managed 环境（Debian 12+/Ubuntu 23.04+）
+IS_EXTERNALLY_MANAGED=false
+for _marker in /usr/lib/python3*/EXTERNALLY-MANAGED; do
+    if [ -f "$_marker" ]; then
+        IS_EXTERNALLY_MANAGED=true
+        break
+    fi
+done
+
 if [ -n "$PYTHON" ]; then
-    if $PYTHON -m pip --version &> /dev/null; then
-        $PYTHON -m pip install --upgrade pip --break-system-packages 2>/dev/null || \
-            $PYTHON -m pip install --upgrade pip
-        $PYTHON -m pip install pytest OpenCC --break-system-packages 2>/dev/null || \
-            $PYTHON -m pip install pytest OpenCC
+    if $IS_EXTERNALLY_MANAGED; then
+        echo "检测到 externally-managed 环境，使用 apt 安装 Python 依赖..."
+        if command -v apt-get &> /dev/null; then
+            $SUDO apt-get -y install python3-pytest python3-opencc 2>/dev/null || \
+                echo "警告: 部分 Python 包通过 apt 安装失败，请手动安装 python3-pytest python3-opencc"
+        fi
+        # 仍然尝试通过 pip 以 --break-system-packages 安装（静默失败也可接受）
+        $PYTHON -m pip install --upgrade pip --break-system-packages 2>/dev/null || true
+        $PYTHON -m pip install pytest OpenCC --break-system-packages 2>/dev/null || true
+    elif $PYTHON -m pip --version &> /dev/null; then
+        $PYTHON -m pip install --upgrade pip
+        $PYTHON -m pip install pytest OpenCC
     else
         echo "警告: 未找到 pip，跳过 Python 依赖安装"
     fi

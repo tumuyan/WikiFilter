@@ -31,5 +31,5 @@
 -whitelist
     #不处理的词条所在的文件（只使用词条本身匹配，不比较编码）
     rime-melt/others/whitelist.txt
--preprocessed-path
+#-preprocessed-path
     #加载预处理后的中文词条的路径，使用此参数将直接走opencc处理

@@ -492,10 +492,10 @@ jobs:
         echo "=== 处理完成 ==="
         ls -lh $source_dir/*.csv $source_dir/*.txt $source_dir/*.chs.* $source_dir/*.merge.* 2>/dev/null || true
     
-    - name: Upload DictTick Result (Step 1)
+    - name: Upload Dict-Tick Result - wiki
       uses: actions/upload-artifact@v4.3.3
       with:
-        name: wiki_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}_1
+        name: wiki_dicttick_result_${{ env.VERSION}}_${{github.event.inputs.dict_source}}
         path: |
          ${{ env.dict_filename }}.*
     
@@ -556,6 +556,13 @@ jobs:
 
         ./ImeWlConverterCmd moe.txt -i   word -o rime -O "moe.yaml" -t pinyin 2>&1 | grep -v 'Generating codes' || true
         ../fix_yaml.sh moe "萌娘百科词库"
+
+    - name: Upload Dict-Tick Result - MoeGirl
+      uses: actions/upload-artifact@v4.3.3
+      with:
+        name: moegirl_dicttick_result
+        path: |
+          scripts/imewlconverter/moe.*
 
     - name: Upload Rime Dict
       uses: actions/upload-artifact@v4.3.3
