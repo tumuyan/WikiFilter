@@ -232,14 +232,14 @@ word-eval \
   --stream
 
 
- word-eval \                                                                                   
+ word-eval \
   --api-key "$CNB_TOKEN" \
   --base-url "https://api.cnb.cool/${CNB_REPO_SLUG}/-/ai-ide/v2/chat/completions" \
   --model "deepseek-v4-flash" \
   -o eval.csv \
-  scripts/imewlconverter/dict.dict.txt \ 
+   "configlint.conflict copy.txt" \
   --dump-responses  error.txt \
-   --concurrency 5 \
+   --concurrency 5   \
   --stream
 
 ```
@@ -290,4 +290,7 @@ CSV 文件（UTF-8 BOM），包含以下字段：
 wget https://github.com/tumuyan/Dict-Trick/releases/download/latest/Clean.jar
 java -jar Clean.jar -i scripts/imewlconverter/dict.txt -c scripts/dict-tick-preprocess.txt
 
+# 处理配置冲突
+java -jar ConfigLint.jar  -c scripts/dict-tick-preprocess.txt
 
+java -jar ConfigLint.jar   -resolve /workspace/configlint.conflict.txt

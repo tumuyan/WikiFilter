@@ -62,28 +62,42 @@ for _marker in /usr/lib/python3*/EXTERNALLY-MANAGED; do
 done
 
 if [ -n "$PYTHON" ]; then
+    # pip 额外参数：externally-managed 环境需 --break-system-packages
+    PIP_EXTRA=""
     if $IS_EXTERNALLY_MANAGED; then
-        echo "检测到 externally-managed 环境，使用 apt 安装 Python 依赖..."
-        if command -v apt-get &> /dev/null; then
-            $SUDO apt-get -y install python3-pytest python3-opencc 2>/dev/null || \
-                echo "警告: 部分 Python 包通过 apt 安装失败，请手动安装 python3-pytest python3-opencc"
-        fi
-        # 仍然尝试通过 pip 以 --break-system-packages 安装（静默失败也可接受）
-        $PYTHON -m pip install --upgrade pip --break-system-packages 2>/dev/null || true
-        $PYTHON -m pip install pytest OpenCC --break-system-packages 2>/dev/null || true
-        $PYTHON -m pip install --break-system-packages -e word_eval/ 2>/dev/null || true
-    elif $PYTHON -m pip --version &> /dev/null; then
-        $PYTHON -m pip install --upgrade pip
-        $PYTHON -m pip install pytest OpenCC
-        $PYTHON -m pip install  -e word_eval
+        echo "检测到 externally-managed 环境，安装时使用 --break-system-packages"
+        PIP_EXTRA="--break-system-packages"
+    fi
+
+    # 升级 pip
+    if $PYTHON -m pip install --upgrade pip $PIP_EXTRA; then
+        echo "pip 已升级"
     else
-        echo "警告: 未找到 pip，跳过 Python 依赖安装"
+        echo "警告: pip 升级失败，将使用当前版本继续"
+    fi
+
+    # 安装通用 Python 包
+    if $PYTHON -m pip install pytest OpenCC $PIP_EXTRA; then
+        echo "Python 通用依赖已安装"
+    else
+        echo "警告: Python 通用依赖安装失败，部分功能可能不可用"
+    fi
+
+    # 安装 word_eval 包
+    if [ -d word_eval ]; then
+        if $PYTHON -m pip install -e word_eval $PIP_EXTRA; then
+            echo "word-eval 工具已安装"
+        else
+            echo "错误: word-eval 安装失败，请检查后重试"
+        fi
+    else
+        echo "警告: word_eval/ 目录不存在，跳过安装"
     fi
 fi
 
 # 检查 Java
 echo "检查 Java 环境..."
-JAVA_REQUIRED=20
+JAVA_REQUIRED=21
 
 check_java_version() {
     if ! command -v java &> /dev/null; then
