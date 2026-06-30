@@ -73,6 +73,7 @@
 - `process-dict.sh` — 使用 Dict-Trick（Clean.jar）对词库文件进行预清理
 - `optimize_dict.py` — **Rime 词库编码优化工具**，检查并修正中英混输词条的编码格式：
   - 解析 `...` 标记后的 tab 分割词条
+  - 过滤非 CJK 首字符词条（默认开启，`--keep-non-cjk` 关闭）
   - 检查词条各部分数量合法性（1-3 部分）
   - 检查权重合法性（整数、小数、百分数）
   - 编码预处理：规范化多段分隔符（多个连续分隔符合并为单个）、去除编码中的数字
@@ -141,6 +142,9 @@ python scripts/optimize_dict.py melt_eng.dict.yaml --fix
 
 # 保留编码中的数字（默认去除数字）
 python scripts/optimize_dict.py my_dict.yaml --fix --keep-digits
+
+# 保留非 CJK 首字符词条（默认过滤）
+python scripts/optimize_dict.py my_dict.yaml --fix --keep-non-cjk
 
 # 指定编码分隔符为逗号
 python scripts/optimize_dict.py my_dict.yaml --delim ,
@@ -237,7 +241,7 @@ word-eval \
   --base-url "https://api.cnb.cool/${CNB_REPO_SLUG}/-/ai-ide/v2/chat/completions" \
   --model "deepseek-v4-flash" \
   -o eval.csv \
-   "configlint.conflict copy.txt" \
+   filted.chs.txt \
   --dump-responses  error.txt \
    --concurrency 5   \
   --stream

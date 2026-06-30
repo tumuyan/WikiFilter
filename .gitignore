@@ -381,3 +381,4 @@ scripts/imewlconverter/*
 *.scel
 word_eval/build/
 word_eval/src/word_eval.egg-info/
+.word-eval-resume.json
